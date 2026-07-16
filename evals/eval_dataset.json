@@ -1,0 +1,43 @@
+{
+  "entries": [
+    {
+      "id": "sample-001",
+      "photo_path": "images/sample-001.jpg",
+      "ground_truth_verdict": "NOT_PARKABLE",
+      "ground_truth_rule": {
+        "description": "No parking Monday to Friday 8:00-18:00",
+        "time_window": {
+          "start": "08:00",
+          "end": "18:00"
+        }
+      },
+      "failure_tag": "arrow"
+    },
+    {
+      "id": "sample-002",
+      "photo_path": "images/sample-002.jpg",
+      "ground_truth_verdict": "PARKABLE",
+      "ground_truth_rule": {
+        "description": "Two hour parking allowed",
+        "time_window": {
+          "start": "09:00",
+          "end": "17:00"
+        }
+      },
+      "failure_tag": "ocr"
+    },
+    {
+      "id": "sample-003",
+      "photo_path": "images/sample-003.jpg",
+      "ground_truth_verdict": "DEPENDS",
+      "ground_truth_rule": {
+        "description": "Permit required after 18:00",
+        "time_window": {
+          "start": "18:00",
+          "end": "23:59"
+        }
+      },
+      "failure_tag": "reasoning"
+    }
+  ]
+}

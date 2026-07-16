@@ -1,0 +1,16 @@
+{
+  "extraction_id": "fixture-0002",
+  "source": "camera_scan",
+  "parser_version": "fixture-vision-extractor-v1",
+  "ingestion_timestamp": "2026-07-14T18:04:00Z",
+  "confidence": 0.41,
+  "rules": [
+    {
+      "rule_id": "broken-rule-1",
+      "description": "Sign partially occluded; extractor omitted the required type field",
+      "day_pattern": {
+        "type": "any_day"
+      }
+    }
+  ]
+}

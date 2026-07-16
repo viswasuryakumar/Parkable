@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Parkable eval dataset",
+  "type": "object",
+  "required": ["entries"],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "photo_path", "ground_truth_verdict", "ground_truth_rule", "failure_tag"],
+        "properties": {
+          "id": { "type": "string" },
+          "photo_path": { "type": "string" },
+          "ground_truth_verdict": {
+            "type": "string",
+            "enum": ["PARKABLE", "NOT_PARKABLE", "DEPENDS"]
+          },
+          "ground_truth_rule": {
+            "type": "object",
+            "required": ["description", "time_window"],
+            "properties": {
+              "description": { "type": "string" },
+              "time_window": {
+                "type": "object",
+                "required": ["start", "end"],
+                "properties": {
+                  "start": { "type": "string" },
+                  "end": { "type": "string" }
+                }
+              }
+            }
+          },
+          "failure_tag": {
+            "type": "string",
+            "enum": ["ocr", "arrow", "schema", "reasoning"]
+          }
+        }
+      }
+    }
+  }
+}

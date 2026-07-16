@@ -1,0 +1,42 @@
+{
+  "extraction_id": "fixture-0001",
+  "source": "camera_scan",
+  "city": "San Francisco",
+  "state": "CA",
+  "parser_version": "fixture-vision-extractor-v1",
+  "ingestion_timestamp": "2026-07-14T18:04:00Z",
+  "extraction_method": "manual",
+  "confidence": 0.97,
+  "raw_text": "NO PARKING 8AM TO 6PM MON THRU FRI EXCEPT HOLIDAYS",
+  "rules": [
+    {
+      "rule_id": "sign-rule-1",
+      "type": "no_parking",
+      "description": "No Parking 8am-6pm Mon-Fri, except holidays",
+      "original_description": "NO PARKING 8AM TO 6PM MON THRU FRI EXCEPT HOLIDAYS",
+      "time_windows": [
+        {
+          "start_time": "08:00",
+          "end_time": "18:00",
+          "crosses_midnight": false,
+          "all_day": false
+        }
+      ],
+      "day_pattern": {
+        "type": "specific_days",
+        "days_of_week": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "exceptions": [
+        {
+          "exception_type": "holiday_suspension",
+          "description": "Except holidays"
+        }
+      ],
+      "direction": {
+        "side_of_street": "not_specified",
+        "arrow": "not_applicable"
+      },
+      "status": "active"
+    }
+  ]
+}

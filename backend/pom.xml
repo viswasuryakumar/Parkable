@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.parkable</groupId>
+  <artifactId>parkable-backend</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <!-- Production -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.16.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <!-- Plan suggested 1.0.91, which is no longer resolvable from Maven Central;
+           1.4.0 is the same library's current stable line. -->
+      <version>1.4.0</version>
+    </dependency>
+    <dependency>
+      <!-- Official Anthropic SDK. The Phase 1 plan sketched raw java.net.http,
+           but deferred the final call to implementation time; the SDK gives us
+           typed vision blocks, retries, and error classes for free. -->
+      <groupId>com.anthropic</groupId>
+      <artifactId>anthropic-java</artifactId>
+      <version>2.34.0</version>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.10.2</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.25.3</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <!-- 5.11's Byte Buddy predates Java 25 class files; 5.18 supports JDK 25
+           (required since the toolchain moved to Java 25 on 2026-07-16). -->
+      <version>5.18.0</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <!-- Exposes dependency paths as properties (org.mockito:mockito-core:jar)
+             for the surefire agent line below. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals><goal>properties</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <!-- 3.x auto-detects the JUnit Platform provider; the plan's 2.22.2 needs
+             extra provider wiring on JDK 21, so we pin the newer line instead. -->
+        <version>3.2.5</version>
+        <configuration>
+          <!-- JDK 25 forbids the dynamic agent self-attach Mockito's inline
+               mock maker relies on, so the agent is attached explicitly.
+               net.bytebuddy.experimental: Byte Buddy 1.17 officially tops out
+               below Java 25 class files; drop the flag once Mockito ships a
+               Byte Buddy with official Java 25 support. -->
+          <argLine>-javaagent:${org.mockito:mockito-core:jar} -Xshare:off -Dnet.bytebuddy.experimental=true</argLine>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <!-- ScanCLI arrives in Stage C; the manifest entry is inert until then. -->
+                  <mainClass>com.parkable.cli.ScanCLI</mainClass>
+                </transformer>
+              </transformers>
+              <finalName>parkable-cli</finalName>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

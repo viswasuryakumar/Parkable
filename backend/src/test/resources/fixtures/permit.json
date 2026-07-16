@@ -1,0 +1,21 @@
+{
+  "extraction_id": "fixture-0003",
+  "source": "camera_scan",
+  "parser_version": "fixture-vision-extractor-v1",
+  "ingestion_timestamp": "2026-07-14T18:04:00Z",
+  "confidence": 0.93,
+  "raw_text": "RESIDENTIAL PERMIT PARKING ONLY AREA A",
+  "rules": [
+    {
+      "rule_id": "permit-rule-1",
+      "type": "permit_required",
+      "description": "Residential permit parking only, Area A",
+      "restriction": {
+        "permit_type": "residential"
+      },
+      "day_pattern": {
+        "type": "any_day"
+      }
+    }
+  ]
+}

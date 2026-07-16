@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parkable.dev/schema/parking-rule-schema.json",
+  "title": "Parkable Extraction Envelope",
+  "description": "Validates an extraction envelope produced by gov-data ETL or LLM camera-scan extraction, per docs/schema.md v1.0.",
+  "type": "object",
+  "required": ["extraction_id", "source", "parser_version", "ingestion_timestamp", "confidence", "rules"],
+  "properties": {
+    "extraction_id": { "type": "string", "minLength": 1 },
+    "source": { "enum": ["gov_data", "camera_scan", "api_sync"] },
+    "city": { "type": "string" },
+    "state": { "type": "string" },
+    "source_dataset_url": { "type": "string" },
+    "source_version": { "type": "string" },
+    "parser_version": { "type": "string", "minLength": 1 },
+    "ingestion_timestamp": { "type": "string", "format": "date-time" },
+    "extraction_method": { "enum": ["llm", "structured_parser", "manual"] },
+    "geographic_scope": { "type": "object" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "coverage_completeness": { "type": "number", "minimum": 0, "maximum": 1 },
+    "notes": { "type": "string" },
+    "raw_text": { "type": "string" },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": ["rule_id", "type", "day_pattern"],
+      "properties": {
+        "rule_id": { "type": "string", "minLength": 1 },
+        "source_rule_id": { "type": "string" },
+        "type": { "enum": ["time_limit", "no_parking", "permit_required", "restricted", "street_cleaning", "color_curb"] },
+        "description": { "type": "string" },
+        "original_description": { "type": "string" },
+        "restriction": {
+          "type": "object",
+          "properties": {
+            "duration_minutes": { "type": "integer", "minimum": 0 },
+            "permit_type": { "enum": ["residential", "guest", "business", "other"] },
+            "color": { "enum": ["red", "blue", "green", "white", "yellow"] },
+            "curb_use": { "enum": ["no_stopping", "no_parking", "loading", "disabled_accessible"] },
+            "extra_details": { "type": "string" }
+          }
+        },
+        "time_windows": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/time_window" }
+        },
+        "day_pattern": { "$ref": "#/$defs/day_pattern" },
+        "exceptions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/exception" }
+        },
+        "direction": { "$ref": "#/$defs/direction" },
+        "location": { "type": "object" },
+        "rates": { "type": "array" },
+        "metadata": { "type": "object" },
+        "status": { "enum": ["active", "deprecated", "superseded"] },
+        "deprecation_reason": { "type": "string" },
+        "replacement_rule_id": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "time_limit" } } },
+          "then": {
+            "required": ["restriction"],
+            "properties": {
+              "restriction": { "required": ["duration_minutes"] }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "permit_required" } } },
+          "then": {
+            "required": ["restriction"],
+            "properties": {
+              "restriction": { "required": ["permit_type"] }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "color_curb" } } },
+          "then": {
+            "required": ["restriction"],
+            "properties": {
+              "restriction": { "required": ["color"] }
+            }
+          }
+        }
+      ]
+    },
+    "time_window": {
+      "type": "object",
+      "properties": {
+        "start_time": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+        "end_time": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+        "crosses_midnight": { "type": "boolean" },
+        "all_day": { "type": "boolean" }
+      },
+      "if": {
+        "not": { "properties": { "all_day": { "const": true } }, "required": ["all_day"] }
+      },
+      "then": {
+        "required": ["start_time", "end_time"]
+      }
+    },
+    "day_pattern": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["specific_days", "nth_weekday_of_month", "any_day", "date_range"] },
+        "days_of_week": {
+          "type": "array",
+          "items": { "enum": ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN", "ANY"] }
+        },
+        "weekday": { "enum": ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] },
+        "occurrences": {
+          "type": "array",
+          "items": { "enum": [1, 2, 3, 4, 5, -1] }
+        },
+        "effective_date": { "type": "string", "format": "date" },
+        "sunset_date": { "type": "string", "format": "date" },
+        "year_round": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "specific_days" } } },
+          "then": {
+            "required": ["days_of_week"],
+            "properties": { "days_of_week": { "minItems": 1 } }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "nth_weekday_of_month" } } },
+          "then": {
+            "required": ["weekday", "occurrences"],
+            "properties": { "occurrences": { "minItems": 1 } }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "date_range" } } },
+          "then": { "required": ["effective_date"] }
+        }
+      ]
+    },
+    "exception": {
+      "type": "object",
+      "required": ["exception_type"],
+      "properties": {
+        "exception_type": { "enum": ["holiday_suspension", "special_event", "snow_emergency", "permit_holder"] },
+        "description": { "type": "string" },
+        "applies_to": { "type": "array", "items": { "type": "string" } },
+        "exception_rule": { "type": "string" },
+        "date_override": { "type": "string", "format": "date" }
+      }
+    },
+    "direction": {
+      "type": "object",
+      "properties": {
+        "side_of_street": { "enum": ["left", "right", "both", "not_specified"] },
+        "cardinal": { "enum": ["north", "south", "east", "west", "not_specified"] },
+        "house_numbers": { "enum": ["odd", "even", "not_applicable"] },
+        "arrow": { "enum": ["north", "south", "east", "west", "not_applicable"] }
+      }
+    }
+  }
+}

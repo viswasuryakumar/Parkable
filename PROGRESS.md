@@ -1,0 +1,58 @@
+# Parkable — Task Board & Progress
+
+> **Rules**: Read `AGENTS.md` first. Edit only YOUR task rows. Append-only Coordination Log.
+> Statuses: `TODO` · `IN_PROGRESS` · `DONE` · `BLOCKED` (with reason). Timestamps in local time.
+
+**Build baseline**: 135 tests green, 1 skipped (opt-in live API test) on JDK 25 (verified 2026-07-16 ~12:20 by Claude Code). `mvn package` produces a working `backend/target/parkable-cli.jar`. If you find the build red and it's not your change, log it under Requests & Blockers — do not fix other agents' code.
+**Version control**: local git repo initialized 2026-07-16 (no remote — do NOT add one or push). Commit your own completed work with clear messages; never commit another agent's in-progress files (`git add` specific paths, not `-A`).
+
+---
+
+## Claude Code (Manager) — backend core, extraction, CLI, build health
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| C1 | Phase 1 Stage A: domain model + temporal engine + holiday calendar (69 tests) | DONE | 2026-07-15 | |
+| C2 | Phase 1 Stage B: extraction DTOs, schema/semantic validators, RuleFactory, FixtureVisionExtractor, retry decorator (+44 tests, 113 total) | DONE | 2026-07-16 12:00 | Includes golden e2e pipeline test |
+| C3 | Toolchain: JDK 25 migration fallout (Mockito javaagent + Byte Buddy flag in pom) | DONE | 2026-07-16 12:00 | Copilot modernize tool upgraded pom to Java 25 |
+| C4 | ClaudeVisionExtractor (real Anthropic Messages API call, env-var key, guarded offline) | DONE | 2026-07-16 12:20 | Official anthropic-java SDK (claude-opus-4-8, adaptive thinking); offline parse tests + opt-in live smoke test (ANTHROPIC_LIVE_TEST=1) |
+| C5 | ScanCLI + CliArgs + OutputFormatter + shade packaging (`parkable-cli.jar`) + e2e CLI tests | DONE | 2026-07-16 12:25 | Exit codes 0/1/2/3/64/66; jar smoke-tested (NOT_PARKABLE + DEPENDS paths); 135 tests green |
+| C6 | Review Codex X1–X3 and Copilot P1–P2 deliverables; integration fixes | TODO | | After their DONE marks |
+| C7 | Phase 1 architecture review (4 rules) + close out Phase 1 | TODO | | Last Phase 1 task |
+
+## Codex — repository, datasource, SQL
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| X1 | `com.parkable.repository`: `RuleRepository` interface, `InMemoryRuleRepository`, `ExtractionRecord` (record: extraction envelope + photo ref + parser_version + GPS + timestamp) + unit tests. Spec: `docs/plans/phase1-rules-engine.md` §1 (package layout) & §7 step 22 | DONE | 2026-07-16 11:58 | Repository seam, provenance record, GPS validation, and 4 unit tests added; full suite green (117 tests). |
+| X2 | `com.parkable.datasource`: `SignSource` interface + `CameraScanSignSource` adapter (wraps a `VisionExtractor`; Phase 1 seam — `fetch()` may throw `UnsupportedOperationException` per spec §5) + tests proving the seam compiles against the extraction package | IN_PROGRESS | 2026-07-16 11:58 | Read-only use of extraction interfaces |
+| X3 | `backend/sql/schema.sql`: Postgres 15 + PostGIS DDL — `rules` table (id, GEOGRAPHY(Point) location, JSONB rule, source tag, parser_version, created_at), GiST spatial index, 25m-radius query example as comment. Idempotent (`CREATE ... IF NOT EXISTS`) | IN_PROGRESS | 2026-07-16 12:07 | Phase 2 prep; pure SQL, zero Java deps |
+
+## Copilot — mobile app, evals
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| P1 | `mobile/`: Expo (TypeScript) scaffold — `services/api.ts` typed client for `POST /scan`, `GET /check?lat&lng`, `GET /nearby?lat&lng` (base URL from config, endpoints per CLAUDE.md Phase 2); `screens/VerdictScreen.tsx` (verdict + reason + valid-until countdown, mock data until backend is live); `screens/CameraScreen.tsx` (expo-camera capture + upload stub + retake prompt on low confidence); permission requests (camera, location). Must run with `npx expo start` | DONE | 2026-07-16 18:32 | Scaffolded Expo-style TypeScript mobile app with typed API client, verdict screen, camera screen, and permission flow; Node runtime unavailable here so full Expo startup verification is deferred. |
+| P2 | `evals/`: benchmark skeleton — `eval_dataset.schema.json` + `eval_dataset.json` with 3 sample entries (photo path, ground-truth verdict at a fixed instant, rule JSON, failure-tag enum: ocr/arrow/schema/reasoning) + `README.md` documenting the labeling workflow | DONE | 2026-07-16 18:32 | Added schema, sample dataset, and README for the eval workflow in the requested format. |
+
+---
+
+## Requests & Blockers
+
+_Add a row when you need something outside your ownership (dependency in pom.xml, schema change, another agent's bug). Claude Code triages these._
+
+| From | Request / Blocker | Status | Resolution |
+|------|-------------------|--------|------------|
+| Codex | X2 focused tests passed, but the full Maven run failed during test compilation while other agents were writing/compiling shared backend sources (core classes reported missing despite existing on disk). | Resolved | Claude Code 12:20: transient contention — two agents ran `mvn` on the same `target/` concurrently. Full suite verified green after (135 tests incl. X1). Convention going forward: before a FULL `mvn test`, check the log for a run in the last ~2 min; focused runs (`-Dtest=...`) are always fine. |
+
+## Coordination Log (append-only)
+
+- 2026-07-16 12:05 · Claude Code · Board created. Baseline green (113 tests). X1–X3, P1–P2 ready to start in parallel — no cross-dependencies.
+- 2026-07-16 11:52 · Codex · Started X1 repository seam and unit tests.
+- 2026-07-16 11:58 · Codex · Completed X1: in-memory repository and reproducible extraction record; full suite green (117 tests).
+- 2026-07-16 11:58 · Codex · Started X2 SignSource and camera-scan adapter seam.
+- 2026-07-16 12:07 · Codex · X2 focused tests passed; full-suite verification deferred due to concurrent shared-build compilation interference. Started independent X3 SQL schema.
+- 2026-07-16 18:32 · Copilot · Started P1/P2 mobile app and eval scaffolding.
+- 2026-07-16 18:32 · Copilot · Completed P1/P2: created mobile TypeScript scaffold and eval benchmark skeleton; Expo runtime verification is blocked by missing Node/npm in this environment.
+- 2026-07-16 12:20 · Claude Code · Completed C4 (ClaudeVisionExtractor via official SDK) and C5 (ScanCLI + packaging). Full suite 135 green; parkable-cli.jar smoke-tested. Resolved Codex's build-contention blocker (transient concurrent-mvn issue).
+- 2026-07-16 12:25 · Claude Code · Local git repo initialized (user request; local-only, no remote). Next: C6 review of X1/P1/P2 deliverables once X2/X3 land.

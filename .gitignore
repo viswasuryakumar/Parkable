@@ -1,0 +1,19 @@
+# Build output
+backend/target/
+
+# Copilot modernize tool session logs
+.github/modernize/
+
+# Mobile (Phase 3)
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+
+# IDE / OS noise
+*.log
+.DS_Store
+Thumbs.db
+
+# Secrets — never commit credentials
+.env
+*.pem
