@@ -25,8 +25,8 @@
 | ID | Task | Status | Updated | Notes |
 |----|------|--------|---------|-------|
 | X1 | `com.parkable.repository`: `RuleRepository` interface, `InMemoryRuleRepository`, `ExtractionRecord` (record: extraction envelope + photo ref + parser_version + GPS + timestamp) + unit tests. Spec: `docs/plans/phase1-rules-engine.md` §1 (package layout) & §7 step 22 | DONE | 2026-07-16 11:58 | Repository seam, provenance record, GPS validation, and 4 unit tests added; full suite green (117 tests). |
-| X2 | `com.parkable.datasource`: `SignSource` interface + `CameraScanSignSource` adapter (wraps a `VisionExtractor`; Phase 1 seam — `fetch()` may throw `UnsupportedOperationException` per spec §5) + tests proving the seam compiles against the extraction package | IN_PROGRESS | 2026-07-16 11:58 | Read-only use of extraction interfaces |
-| X3 | `backend/sql/schema.sql`: Postgres 15 + PostGIS DDL — `rules` table (id, GEOGRAPHY(Point) location, JSONB rule, source tag, parser_version, created_at), GiST spatial index, 25m-radius query example as comment. Idempotent (`CREATE ... IF NOT EXISTS`) | IN_PROGRESS | 2026-07-16 12:07 | Phase 2 prep; pure SQL, zero Java deps |
+| X2 | `com.parkable.datasource`: `SignSource` interface + `CameraScanSignSource` adapter (wraps a `VisionExtractor`; Phase 1 seam — `fetch()` may throw `UnsupportedOperationException` per spec §5) + tests proving the seam compiles against the extraction package | DONE | 2026-07-16 12:13 | SignSource seam and camera adapter added with 3 tests; full suite green (135 tests, 1 skipped). |
+| X3 | `backend/sql/schema.sql`: Postgres 15 + PostGIS DDL — `rules` table (id, GEOGRAPHY(Point) location, JSONB rule, source tag, parser_version, created_at), GiST spatial index, 25m-radius query example as comment. Idempotent (`CREATE ... IF NOT EXISTS`) | DONE | 2026-07-16 12:13 | Idempotent PostGIS DDL, GiST index, and 25 m query example added; full suite green (135 tests, 1 skipped). |
 
 ## Copilot — mobile app, evals
 
@@ -52,6 +52,8 @@ _Add a row when you need something outside your ownership (dependency in pom.xml
 - 2026-07-16 11:58 · Codex · Completed X1: in-memory repository and reproducible extraction record; full suite green (117 tests).
 - 2026-07-16 11:58 · Codex · Started X2 SignSource and camera-scan adapter seam.
 - 2026-07-16 12:07 · Codex · X2 focused tests passed; full-suite verification deferred due to concurrent shared-build compilation interference. Started independent X3 SQL schema.
+- 2026-07-16 12:13 · Codex · Completed X2: SignSource camera adapter seam and tests; full suite green (135 tests, 1 skipped).
+- 2026-07-16 12:13 · Codex · Completed X3: idempotent PostGIS schema, GiST index, and 25 m radius query example; full suite green (135 tests, 1 skipped).
 - 2026-07-16 18:32 · Copilot · Started P1/P2 mobile app and eval scaffolding.
 - 2026-07-16 18:32 · Copilot · Completed P1/P2: created mobile TypeScript scaffold and eval benchmark skeleton; Expo runtime verification is blocked by missing Node/npm in this environment.
 - 2026-07-16 12:20 · Claude Code · Completed C4 (ClaudeVisionExtractor via official SDK) and C5 (ScanCLI + packaging). Full suite 135 green; parkable-cli.jar smoke-tested. Resolved Codex's build-contention blocker (transient concurrent-mvn issue).
