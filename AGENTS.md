@@ -63,10 +63,11 @@ Parkable answers **"Can I park here right now?"** — LLM extracts parking rules
 - Test-first for logic-bearing code: JUnit 5 + AssertJ (+ Mockito where needed). Match the style of existing tests in `backend/src/test`.
 - Mobile: TypeScript, Expo; keep API calls in `mobile/services/api.ts`; no business logic in components (verdicts come from the backend, never computed on-device).
 
-## Version Control (local git — added 2026-07-16)
+## Version Control (local git — added 2026-07-16; review gate added 2026-07-17)
 
 - The repo is **local-only by the user's explicit choice**: never add a remote, never push, never suggest publishing.
-- Commit your OWN completed task with a clear message (`X1: repository seam + tests`). Stage specific paths — never `git add -A` (you'd sweep in other agents' in-progress files).
+- **Codex and Copilot do NOT commit.** Finish your task, mark it DONE in PROGRESS.md, and leave your files in the working tree. Claude Code reviews every deliverable (correctness, tests, architecture rules) and commits it after the review — with your agent name in the commit message. This is the user-mandated quality gate.
+- Claude Code: stage specific paths per review — never `git add -A` blindly (in-progress work from another agent may be in the tree).
 - Never rewrite history (`rebase`, `commit --amend` on shared commits, `reset --hard`).
 
 ## Definition of Done (per task)
