@@ -8,10 +8,15 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "photo_path", "ground_truth_verdict", "ground_truth_rule", "failure_tag"],
+        "required": ["id", "photo_path", "evaluated_at", "ground_truth_verdict", "ground_truth_rule", "failure_tag"],
         "properties": {
           "id": { "type": "string" },
           "photo_path": { "type": "string" },
+          "evaluated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The fixed instant (ISO 8601, with offset) at which ground_truth_verdict holds. The rules engine takes this as its evaluation instant."
+          },
           "ground_truth_verdict": {
             "type": "string",
             "enum": ["PARKABLE", "NOT_PARKABLE", "DEPENDS"]

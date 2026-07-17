@@ -3,6 +3,7 @@
     {
       "id": "sample-001",
       "photo_path": "images/sample-001.jpg",
+      "evaluated_at": "2026-07-15T10:30:00-07:00",
       "ground_truth_verdict": "NOT_PARKABLE",
       "ground_truth_rule": {
         "description": "No parking Monday to Friday 8:00-18:00",
@@ -16,6 +17,7 @@
     {
       "id": "sample-002",
       "photo_path": "images/sample-002.jpg",
+      "evaluated_at": "2026-07-15T10:45:00-07:00",
       "ground_truth_verdict": "PARKABLE",
       "ground_truth_rule": {
         "description": "Two hour parking allowed",
@@ -29,6 +31,7 @@
     {
       "id": "sample-003",
       "photo_path": "images/sample-003.jpg",
+      "evaluated_at": "2026-07-15T19:15:00-07:00",
       "ground_truth_verdict": "DEPENDS",
       "ground_truth_rule": {
         "description": "Permit required after 18:00",
