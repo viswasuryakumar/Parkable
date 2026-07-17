@@ -1,0 +1,111 @@
+package com.parkable.lambda;
+
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.parkable.extraction.ExtractionMetadata;
+import com.parkable.extraction.ExtractionResult;
+import com.parkable.extraction.VisionExtractor;
+import com.parkable.extraction.dto.ExtractionEnvelope;
+import com.parkable.repository.InMemoryRuleRepository;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Base64;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * /scan tests over a fake extractor (VisionExtractor is a single-method
+ * interface, so fakes are lambdas). The valid envelope is the golden
+ * fixture, so the full validate → factory → engine path is real.
+ */
+class ScanHandlerTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Instant SCAN_TIME = Instant.parse("2026-07-14T18:04:00Z");
+    private static final Clock FIXED_CLOCK = Clock.fixed(SCAN_TIME, ZoneOffset.UTC);
+    private static final ExtractionMetadata METADATA =
+            new ExtractionMetadata("s3://bucket/scan-1.jpg", "test-parser-v1", SCAN_TIME);
+
+    private static ExtractionResult.Success validSuccess() {
+        try {
+            JsonNode rawJson = MAPPER.readTree(
+                    Files.readString(Path.of("src/test/resources/fixtures/sign.json")));
+            return new ExtractionResult.Success(
+                    MAPPER.treeToValue(rawJson, ExtractionEnvelope.class), rawJson, METADATA);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String validBody() {
+        return """
+                {"photo_base64":"%s","media_type":"image/jpeg","lat":37.7749,"lng":-122.4194,
+                 "at":"2026-07-14T18:04:00Z"}
+                """.formatted(Base64.getEncoder().encodeToString(new byte[] {1, 2, 3}));
+    }
+
+    @Test
+    void validScanReturnsVerdictAndPersistsProvenance() throws Exception {
+        InMemoryRuleRepository repository = new InMemoryRuleRepository();
+        ScanHandler handler = new ScanHandler(image -> validSuccess(), repository, FIXED_CLOCK);
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(
+                new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(200);
+        JsonNode json = MAPPER.readTree(response.getBody());
+        assertThat(json.get("verdict").asText()).isEqualTo("NOT_PARKABLE");
+        assertThat(json.get("source").asText()).isEqualTo("camera_scan");
+
+        // Reproducibility contract: envelope + GPS + parser version stored.
+        assertThat(repository.findAll()).hasSize(1);
+        var record = repository.findAll().getFirst();
+        assertThat(record.parserVersion()).isEqualTo("test-parser-v1");
+        assertThat(record.gpsLocation()).isPresent();
+        assertThat(record.gpsLocation().get().latitude()).isEqualTo(37.7749);
+    }
+
+    @Test
+    void unreadableSignReturns422AndStoresNothing() {
+        InMemoryRuleRepository repository = new InMemoryRuleRepository();
+        VisionExtractor alwaysNeedsReview = image -> new ExtractionResult.NeedsReview(
+                "Couldn't read this sign clearly.", List.of("blurry"), METADATA);
+        ScanHandler handler = new ScanHandler(alwaysNeedsReview, repository, FIXED_CLOCK);
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(
+                new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(422);
+        assertThat(response.getBody()).contains("NEEDS_REVIEW");
+        assertThat(repository.findAll()).isEmpty();
+    }
+
+    @Test
+    void badBodiesReturn400() {
+        ScanHandler handler = new ScanHandler(image -> validSuccess(), new InMemoryRuleRepository(), FIXED_CLOCK);
+
+        assertThat(handler.handleRequest(new APIGatewayProxyRequestEvent(), null)
+                .getStatusCode()).isEqualTo(400);                                  // no body
+        assertThat(handler.handleRequest(new APIGatewayProxyRequestEvent().withBody("not json"), null)
+                .getStatusCode()).isEqualTo(400);
+        assertThat(handler.handleRequest(new APIGatewayProxyRequestEvent().withBody(
+                "{\"photo_base64\":\"AQID\",\"media_type\":\"image/bmp\",\"lat\":1,\"lng\":1}"), null)
+                .getStatusCode()).isEqualTo(400);                                  // unsupported type
+        assertThat(handler.handleRequest(new APIGatewayProxyRequestEvent().withBody(
+                "{\"photo_base64\":\"@@@\",\"media_type\":\"image/jpeg\",\"lat\":1,\"lng\":1}"), null)
+                .getStatusCode()).isEqualTo(400);                                  // bad base64
+        assertThat(handler.handleRequest(new APIGatewayProxyRequestEvent().withBody(
+                "{\"photo_base64\":\"AQID\",\"media_type\":\"image/jpeg\",\"lat\":95,\"lng\":1}"), null)
+                .getStatusCode()).isEqualTo(400);                                  // lat out of range
+    }
+}

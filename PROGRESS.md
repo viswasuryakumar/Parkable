@@ -37,6 +37,44 @@
 
 ---
 
+---
+
+# PHASE 2 — AWS Backend (kicked off 2026-07-17)
+
+> Spec: `docs/plans/phase2-aws-backend.md` — read it BEFORE starting; API contract, ports,
+> and decisions D1–D5 live there. Build now targets `release 21` (Lambda runtime). New deps
+> (aws-lambda-java-core/events, postgresql) are already in the pom.
+
+## Claude Code — Phase 2
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| C8 | `com.parkable.lambda`: CheckHandler, NearbyHandler, ScanHandler (thin, D2 events), `port.RuleLookup` + `StoredRule`, response DTOs, tests over in-memory fakes | DONE | 2026-07-17 | 11 handler tests; 146 total green. RuleLookup port ready for X4 |
+| C9 | Env-var wiring (D4) + SSM config loading; Lambda packaging | TODO | | After C8 |
+| C10 | Review X4/X5/P3/P4 + `sam local` smoke test | TODO | | Needs U2 |
+
+## Codex — Phase 2
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| X4 | `com.parkable.repository.postgres.PostgresRuleRepository`: implements `RuleRepository` + Claude Code's `lambda.port.RuleLookup`; JDBC PreparedStatements; `ST_DWithin` (lng-first!); parser_version filter (D5); env-var config; unit tests + live test guarded by `PARKABLE_DB_URL` | TODO | | Port interface lands with C8; code the SQL/mapping/tests against the spec meanwhile |
+| X5 | `backend/sql/`: documented upsert for scan writes + cache-lookup query with parser_version filter | TODO | | Pure SQL, start anytime |
+
+## Copilot — Phase 2
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| P3 | `infra/`: SAM `template.yaml` (3 routes per the plan's API contract → Lambda, S3 bucket, SSM refs, least-privilege role), `samconfig.toml.example`, `infra/README.md` deploy + sam-local guide | TODO | | Greenfield dir |
+| P4 | `mobile/`: configurable API base URL; CameraScreen wired to POST /scan contract (base64 v1, D3); 422 → retake UX | TODO | | Contract in plan §3 |
+
+## User setup (blocks deployment only — coding proceeds without these)
+
+| ID | Task | Status |
+|----|------|--------|
+| U1 | Supabase project: create → enable PostGIS → run `backend/sql/schema.sql` → save pooled connection string | TODO |
+| U2 | AWS account + AWS CLI v2 + SAM CLI + Docker Desktop | TODO |
+| U3 | Anthropic API key (only when live extraction wanted) | TODO |
+
 ## Requests & Blockers
 
 _Add a row when you need something outside your ownership (dependency in pom.xml, schema change, another agent's bug). Claude Code triages these._

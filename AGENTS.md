@@ -29,11 +29,14 @@ Parkable answers **"Can I park here right now?"** — LLM extracts parking rules
 | `backend/pom.xml` | **Claude Code ONLY** | Need a dependency? Add a row to Requests & Blockers — do not edit |
 | `backend/src/main/java/com/parkable/{model,engine,calendar,builder,factory,validation,extraction}` + their tests | Claude Code | Frozen for others; read freely |
 | `backend/src/main/java/com/parkable/cli` + tests | Claude Code | Stage C |
+| `backend/src/main/java/com/parkable/lambda` + tests | Claude Code | Phase 2 — handlers + ports |
 | `backend/src/main/java/com/parkable/repository` + tests | Codex | Task X1 |
+| `backend/src/main/java/com/parkable/repository/postgres` + tests | Codex | Phase 2 Task X4 |
 | `backend/src/main/java/com/parkable/datasource` + tests | Codex | Task X2 |
-| `backend/sql/` | Codex | Task X3 |
-| `mobile/` | Copilot | Task P1 — greenfield, nothing exists yet |
-| `evals/` | Copilot | Task P2 — greenfield |
+| `backend/sql/` | Codex | Tasks X3, X5 |
+| `infra/` (SAM template, deploy docs) | Copilot | Phase 2 Task P3 — greenfield |
+| `mobile/` | Copilot | Tasks P1, P4 |
+| `evals/` | Copilot | Task P2 |
 | `docs/`, `CLAUDE.md`, `AGENTS.md`, schema JSON resource | **Claude Code ONLY** | Schema changes are breaking — request via PROGRESS.md |
 | `PROGRESS.md` | All | Own rows + log appends only |
 
