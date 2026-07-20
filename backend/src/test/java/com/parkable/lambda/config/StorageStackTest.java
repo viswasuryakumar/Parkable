@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parkable.extraction.dto.ExtractionEnvelope;
 import com.parkable.lambda.port.StoredRule;
 import com.parkable.repository.ExtractionRecord;
+import com.parkable.repository.postgres.PostgresRuleRepository;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -15,7 +16,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StorageStackTest {
 
@@ -42,13 +42,17 @@ class StorageStackTest {
     }
 
     @Test
-    void dbUrlConfiguredButPostgresRepositoryNotYetOnClasspathFailsFastWithAClearMessage() {
-        // Documents the intended fail-fast behavior for a configured deployment
-        // until Codex's X4 (PostgresRuleRepository) lands. Update/remove once it does.
-        EnvConfig config = EnvConfig.from(Map.of("PARKABLE_DB_URL", "jdbc:postgresql://host/db"));
+    void dbUrlConfiguredLoadsThePostgresRepositoryReflectivelyByTheD6Constructor() {
+        // A fake host is fine here: the JDBC URL is only stored at construction
+        // time (see PostgresRuleRepository), no connection is opened until a
+        // read/write method actually runs. This proves the reflective wiring
+        // (Class.forName + getConstructor(String.class)) matches X4's real
+        // constructor, not just that reflection would work in theory.
+        EnvConfig config = EnvConfig.from(Map.of("PARKABLE_DB_URL", "jdbc:postgresql://example.invalid/db"));
 
-        assertThatThrownBy(() -> StorageStack.from(config))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("PostgresRuleRepository");
+        StorageStack stack = StorageStack.from(config);
+
+        assertThat(stack.repository()).isInstanceOf(PostgresRuleRepository.class);
+        assertThat(stack.repository()).isSameAs(stack.lookup());
     }
 }
