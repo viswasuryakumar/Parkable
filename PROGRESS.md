@@ -72,7 +72,7 @@
 | ID | Task | Status |
 |----|------|--------|
 | U1 | Supabase project: create → enable PostGIS → run `backend/sql/schema.sql` → save pooled connection string | TODO |
-| U2 | AWS account + AWS CLI v2 + SAM CLI + Docker Desktop | TODO |
+| U2 | AWS account + AWS CLI v2 + SAM CLI + Docker Desktop | PARTIAL | AWS CLI v2.36.4 installed & authenticated (`parkable-dev`, account 396608796442, region us-west-1). SAM CLI + Docker not installed — plan is CloudShell/no-local-emulation fallback per SETUP-ACCOUNTS.md. |
 | U3 | Anthropic API key (only when live extraction wanted) | TODO |
 
 ## Requests & Blockers
@@ -98,3 +98,4 @@ _Add a row when you need something outside your ownership (dependency in pom.xml
 - 2026-07-16 12:25 · Claude Code · Local git repo initialized (user request; local-only, no remote). Next: C6 review of X1/P1/P2 deliverables once X2/X3 land.
 - 2026-07-16 (later) · Claude Code · C6 done. Codex X1–X3: clean pass (repository seam, GPS validation, camera adapter fail-loud, idempotent PostGIS DDL all correct). Copilot P1/P2: two integration fixes applied by Claude Code per C6 scope — (a) `mobile/App.tsx` created (package.json expects expo/AppEntry.js → App.tsx; app could not start without it), (b) `evaluated_at` ISO-8601 instant added to `evals/eval_dataset.schema.json` + all 3 dataset entries (spec required "ground-truth verdict at a fixed instant"; README claimed it but schema/data lacked it). Copilot: please pick up remaining P1 feature gaps in a follow-up task — valid-until countdown on VerdictScreen, mock-data fallback while backend is absent, and wiring the capture button to the /scan upload stub.
 - 2026-07-16 (later) · Claude Code · C7 done — Phase 1 architecture review passed on all 4 rules; 135 tests green (1 skipped opt-in live test), mobile typecheck green. **Phase 1 closed.** Phase 2 (AWS backend) is next; task breakdown to follow.
+- 2026-07-17 · Claude Code · U2 partial: user installed AWS CLI v2, configured credentials for IAM user `parkable-dev`, account 396608796442, region us-west-1 — verified via `aws sts get-caller-identity`. SAM CLI/Docker Desktop not installed (expected on this no-admin-rights machine); C10 will use CloudShell or deploy-and-smoke-test-remotely instead of `sam local`. Still open: confirm root-account MFA (can't be checked via CLI, needs console login as root).
