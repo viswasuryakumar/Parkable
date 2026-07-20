@@ -43,6 +43,12 @@ rule carries `source` + `parser_version`.
   tests never need cloud credentials.
 - **D5 — Cache validity**: a stored rule answers a /check only if its `parser_version`
   matches the current parser (Phase 1 reproducibility contract).
+- **D6 — PostgresRuleRepository constructor contract**: a single public constructor
+  taking the JDBC URL as one `String` (e.g. `public PostgresRuleRepository(String jdbcUrl)`),
+  implementing both `RuleRepository` and `RuleLookup` on the same class. C9's
+  `StorageStack` loads it reflectively by this exact signature (`Class.forName` +
+  `getConstructor(String.class)`) so wiring works whether or not X4 has landed yet —
+  match it exactly or the reflective wiring throws a clear "wrong constructor" error.
 
 ## 3. API Contract (Copilot's mobile client + SAM template code against THIS)
 
@@ -97,6 +103,15 @@ everything else proceeds now.
 - `backend/src/main/java/com/parkable/lambda` (+tests) — Claude Code
 - `backend/src/main/java/com/parkable/repository/postgres` (+tests) — Codex
 - `infra/` — Copilot
+
+## 6.1 Packaging note (for P3's SAM template)
+
+No new build step needed: the existing Shade-built `backend/target/parkable-cli.jar`
+(Maven `package`) already contains `com.parkable.lambda.*` plus every dependency. The SAM
+template just needs `CodeUri: ../backend/target/parkable-cli.jar` and, per route,
+`Handler: com.parkable.lambda.CheckHandler::handleRequest` (swap the class per route). The
+jar's inert CLI `Main-Class` manifest entry is harmless — Lambda invokes the handler class
+directly by name, ignoring it.
 
 ## 7. Definition of Done additions for Phase 2
 

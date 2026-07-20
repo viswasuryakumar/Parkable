@@ -7,6 +7,8 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.parkable.calendar.UsFederalHolidayCalendar;
 import com.parkable.engine.RulesEngine;
 import com.parkable.engine.TemporalRuleEvaluator;
+import com.parkable.lambda.config.EnvConfig;
+import com.parkable.lambda.config.StorageStack;
 import com.parkable.lambda.port.RuleLookup;
 import com.parkable.lambda.port.StoredRule;
 import com.parkable.model.Rule;
@@ -33,6 +35,11 @@ public class CheckHandler implements RequestHandler<APIGatewayProxyRequestEvent,
     private final RuleLookup lookup;
     private final RulesEngine engine;
     private final Clock clock;
+
+    /** No-arg constructor AWS Lambda actually invokes in production; wires from env vars (D4). */
+    public CheckHandler() {
+        this(StorageStack.from(EnvConfig.fromEnvironment()).lookup(), Clock.systemUTC());
+    }
 
     public CheckHandler(RuleLookup lookup, Clock clock) {
         this.lookup = Objects.requireNonNull(lookup, "lookup");

@@ -4,6 +4,8 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.parkable.lambda.config.EnvConfig;
+import com.parkable.lambda.config.StorageStack;
 import com.parkable.lambda.port.RuleLookup;
 import com.parkable.lambda.port.StoredRule;
 
@@ -22,6 +24,11 @@ public class NearbyHandler implements RequestHandler<APIGatewayProxyRequestEvent
     static final double MAX_RADIUS_METERS = 2000.0;
 
     private final RuleLookup lookup;
+
+    /** No-arg constructor AWS Lambda actually invokes in production; wires from env vars (D4). */
+    public NearbyHandler() {
+        this(StorageStack.from(EnvConfig.fromEnvironment()).lookup());
+    }
 
     public NearbyHandler(RuleLookup lookup) {
         this.lookup = Objects.requireNonNull(lookup, "lookup");

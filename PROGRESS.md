@@ -50,14 +50,14 @@
 | ID | Task | Status | Updated | Notes |
 |----|------|--------|---------|-------|
 | C8 | `com.parkable.lambda`: CheckHandler, NearbyHandler, ScanHandler (thin, D2 events), `port.RuleLookup` + `StoredRule`, response DTOs, tests over in-memory fakes | DONE | 2026-07-17 | 11 handler tests; 146 total green. RuleLookup port ready for X4 |
-| C9 | Env-var wiring (D4) + SSM config loading; Lambda packaging | TODO | | After C8 |
+| C9 | Env-var wiring (D4) + SSM config loading; Lambda packaging | DONE | 2026-07-17 | `com.parkable.lambda.config`: EnvConfig, StorageStack (reflective Postgres load per new decision D6, in-memory fallback), InMemoryRuleLookup, ExtractorFactory. All 3 handlers got public no-arg constructors (what Lambda actually invokes) alongside existing test constructors. SSM itself is resolved to plain env vars by the SAM template (P3's job, `{{resolve:ssm-secure:...}}`) — Java code only reads `System.getenv()`. Packaging: no pom change needed, existing shaded jar already contains `com.parkable.lambda.*` (see plan §6.1). 156 tests green. |
 | C10 | Review X4/X5/P3/P4 + `sam local` smoke test | TODO | | Needs U2 |
 
 ## Codex — Phase 2
 
 | ID | Task | Status | Updated | Notes |
 |----|------|--------|---------|-------|
-| X4 | `com.parkable.repository.postgres.PostgresRuleRepository`: implements `RuleRepository` + Claude Code's `lambda.port.RuleLookup`; JDBC PreparedStatements; `ST_DWithin` (lng-first!); parser_version filter (D5); env-var config; unit tests + live test guarded by `PARKABLE_DB_URL` | TODO | | Port interface lands with C8; code the SQL/mapping/tests against the spec meanwhile |
+| X4 | `com.parkable.repository.postgres.PostgresRuleRepository`: implements `RuleRepository` + Claude Code's `lambda.port.RuleLookup`; JDBC PreparedStatements; `ST_DWithin` (lng-first!); parser_version filter (D5); env-var config; unit tests + live test guarded by `PARKABLE_DB_URL` | TODO | | **Constructor contract is now locked (plan D6): a single public constructor taking the JDBC URL as one `String`.** C9's `StorageStack` loads this class reflectively by that exact signature — match it or wiring breaks with a clear error. U1 (Supabase, PostGIS, schema) is done — live integration test can run today. |
 | X5 | `backend/sql/`: documented upsert for scan writes + cache-lookup query with parser_version filter | TODO | | Pure SQL, start anytime |
 
 ## Copilot — Phase 2
@@ -100,3 +100,4 @@ _Add a row when you need something outside your ownership (dependency in pom.xml
 - 2026-07-16 (later) · Claude Code · C7 done — Phase 1 architecture review passed on all 4 rules; 135 tests green (1 skipped opt-in live test), mobile typecheck green. **Phase 1 closed.** Phase 2 (AWS backend) is next; task breakdown to follow.
 - 2026-07-17 · Claude Code · U2 partial: user installed AWS CLI v2, configured credentials for IAM user `parkable-dev`, account 396608796442, region us-west-1 — verified via `aws sts get-caller-identity`. SAM CLI/Docker Desktop not installed (expected on this no-admin-rights machine); C10 will use CloudShell or deploy-and-smoke-test-remotely instead of `sam local`. Still open: confirm root-account MFA (can't be checked via CLI, needs console login as root).
 - 2026-07-17 · Claude Code · U1 done: user set up Supabase project, enabled PostGIS, ran schema.sql. Codex — X4 (PostgresRuleRepository) can now be tested live; ask the user for the `PARKABLE_DB_URL` value to be set directly in your own environment/shell, never pasted into chat.
+- 2026-07-17 · Claude Code · C9 done: `com.parkable.lambda.config` composition root (EnvConfig/StorageStack/InMemoryRuleLookup/ExtractorFactory), no-arg constructors on all 3 handlers for real Lambda invocation, plan decision D6 added (Postgres constructor contract) so X4 can proceed independently. 156 tests green. Codex/Copilot: X4/X5/P3/P4 are all still TODO — nothing to review yet. Please pick these up.

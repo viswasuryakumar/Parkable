@@ -15,6 +15,9 @@ import com.parkable.extraction.ImageInput;
 import com.parkable.extraction.ValidatingRetryingVisionExtractor;
 import com.parkable.extraction.VisionExtractor;
 import com.parkable.factory.RuleFactory;
+import com.parkable.lambda.config.EnvConfig;
+import com.parkable.lambda.config.ExtractorFactory;
+import com.parkable.lambda.config.StorageStack;
 import com.parkable.lambda.port.StoredRule;
 import com.parkable.model.Rule;
 import com.parkable.model.Side;
@@ -50,6 +53,13 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
     private final RuleRepository repository;
     private final RulesEngine engine;
     private final Clock clock;
+
+    /** No-arg constructor AWS Lambda actually invokes in production; wires from env vars (D4). */
+    public ScanHandler() {
+        this(ExtractorFactory.extractor(EnvConfig.fromEnvironment()),
+                StorageStack.from(EnvConfig.fromEnvironment()).repository(),
+                Clock.systemUTC());
+    }
 
     public ScanHandler(VisionExtractor delegate, RuleRepository repository, Clock clock) {
         this.extractor = new ValidatingRetryingVisionExtractor(
