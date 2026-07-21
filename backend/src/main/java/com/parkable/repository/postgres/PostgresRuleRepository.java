@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * PostGIS-backed storage for extracted rules. Each row holds one rule so the
@@ -209,21 +211,57 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
         }
     }
 
+    // Matches libpq/psql-style credentials embedded in the URL authority
+    // (postgresql://user:password@host...) - the format every hosted
+    // Postgres provider (Supabase included) hands out. The password group is
+    // greedy so a password containing "@" still splits on the LAST "@",
+    // matching how libpq parsers behave.
+    private static final Pattern EMBEDDED_CREDENTIALS =
+            Pattern.compile("^jdbc:postgresql://([^:@/]+):(.+)@(.+)$");
+
     private Connection openConnection() throws SQLException {
         try {
-            return DriverManager.getConnection(jdbcUrl);
+            return connect();
         } catch (SQLException e) {
-            // DriverManager bakes the full connection string - credentials
-            // included - into its own exception message, and that message
-            // otherwise propagates verbatim into Lambda's CloudWatch logs.
-            // Deliberately do NOT chain the original exception as a cause:
-            // any stack-trace printer would still render its message.
+            // DriverManager/the pg driver bake the full connection string -
+            // credentials included - into their own exception messages, and
+            // that message otherwise propagates verbatim into Lambda's
+            // CloudWatch logs. Deliberately do NOT chain the original
+            // exception as a cause: any stack-trace printer would still
+            // render its message.
             throw new SQLException("Failed to connect to Postgres (see " + redactedUrl() + ")", e.getSQLState());
         }
     }
 
+    private Connection connect() throws SQLException {
+        ParsedConnection parsed = parse(jdbcUrl);
+        return parsed.user() == null
+                ? DriverManager.getConnection(parsed.url())
+                : DriverManager.getConnection(parsed.url(), parsed.user(), parsed.password());
+    }
+
+    /**
+     * Splits libpq-style embedded credentials out of the URL, because the pg
+     * JDBC driver does not parse {@code user:password@host} itself - it
+     * would otherwise try to resolve the whole "user:password@host" string
+     * as one literal hostname. URLs already in plain JDBC form (no embedded
+     * credentials) pass through unchanged. Package-private and pure for
+     * testing without a network call.
+     */
+    static ParsedConnection parse(String jdbcUrl) {
+        Matcher matcher = EMBEDDED_CREDENTIALS.matcher(jdbcUrl);
+        if (!matcher.matches()) {
+            return new ParsedConnection(jdbcUrl, null, null);
+        }
+        return new ParsedConnection("jdbc:postgresql://" + matcher.group(3), matcher.group(1), matcher.group(2));
+    }
+
+    record ParsedConnection(String url, String user, String password) {}
+
     private String redactedUrl() {
-        return jdbcUrl.replaceAll("://[^@/]+@", "://<redacted>@");
+        return jdbcUrl
+                .replaceAll("://[^:@/]+:[^@/]+@", "://<redacted>@")
+                .replaceAll("(?i)password=[^&]*", "password=<redacted>");
     }
 
     private static List<PersistedRule> readPersistedRules(ResultSet results) throws SQLException {

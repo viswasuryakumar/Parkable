@@ -79,6 +79,32 @@ class PostgresRuleRepositoryTest {
     }
 
     @Test
+    void parsesEmbeddedLibpqStyleCredentialsForTheJdbcDriver() {
+        // The pg JDBC driver does not understand libpq-style "user:pass@host"
+        // credentials in the URL authority - it would try to resolve the
+        // whole "user:pass@host" string as one literal hostname. Every
+        // hosted Postgres provider (Supabase included) hands out connection
+        // strings in exactly that shape, so this is what makes them usable.
+        // The password's own "@" proves the split lands on the LAST "@".
+        PostgresRuleRepository.ParsedConnection parsed = PostgresRuleRepository.parse(
+                "jdbc:postgresql://myuser:my@pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres");
+
+        assertThat(parsed.url()).isEqualTo("jdbc:postgresql://aws-0-us-west-1.pooler.supabase.com:6543/postgres");
+        assertThat(parsed.user()).isEqualTo("myuser");
+        assertThat(parsed.password()).isEqualTo("my@pass");
+    }
+
+    @Test
+    void leavesAlreadyStandardJdbcUrlsUnchanged() {
+        PostgresRuleRepository.ParsedConnection parsed =
+                PostgresRuleRepository.parse("jdbc:postgresql://host:5432/db?user=u&password=p");
+
+        assertThat(parsed.url()).isEqualTo("jdbc:postgresql://host:5432/db?user=u&password=p");
+        assertThat(parsed.user()).isNull();
+        assertThat(parsed.password()).isNull();
+    }
+
+    @Test
     void neverLeaksCredentialsFromTheJdbcUrlWhenAConnectionFails() {
         // example.invalid (RFC 2606) never resolves, forcing a real connection
         // failure without a live database. A production incident showed the
