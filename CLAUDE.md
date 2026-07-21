@@ -61,14 +61,17 @@ Work proceeds phase-by-phase, in order, at whatever pace is feasible. A phase is
 
 **Learning**: Lambda cold start, PostGIS queries, spatial indexing
 
-### Phase 2.5: Gov Data ETL
-**Goal**: Auto-answer from SF parking dataset when available
+### Phase 2.5: Gov Data ETL (multi-city)
+**Goal**: Auto-answer from government open-parking-data when available — **not SF-only**;
+NYC, Chicago, LA, SF, and Seattle all have verified real endpoints (see
+`docs/plans/phase2.5-gov-data-etl.md`), and the two-adapter design (Socrata + ArcGIS) covers
+most future US cities too.
 
 **Tasks**:
-- [ ] GovDataSource interface implementation
-- [ ] SF open parking dataset parser (block-face rules → JSON schema)
-- [ ] Batch job: normalize + load into PostGIS with source=gov tag
-- [ ] /check endpoint returns gov data when within 25m
+- [ ] New `GovDataFeed` interface (bulk enumeration — distinct from Phase 1's point-query `SignSource`, which stays camera-only) + `SocrataGovDataFeed`, `ArcGisGovDataFeed` implementations (generic transport, reused across all cities)
+- [ ] `GovRuleMapper` interface + one mapper per city (NYC, Chicago, LA, SF, Seattle) — each verifies real field names live before coding, not from guesses
+- [ ] Batch ETL job (`GovDataImportCli`): normalize + load into PostGIS with `source=gov_data` tag, idempotent re-run
+- [ ] /check, /nearby endpoints already return gov data when within 25m once it's loaded — **zero handler changes needed**, Phase 2's cache/parser_version logic is generic
 
 **Learning**: ETL patterns, normalizing heterogeneous parking rule formats
 

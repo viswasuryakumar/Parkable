@@ -116,3 +116,44 @@ _Add a row when you need something outside your ownership (dependency in pom.xml
 - 2026-07-20 (later) · Claude Code · C10 continued: confirmed P3 fix is correct (3 separate Lambda functions, each properly routed). P4 mobile bug was still present at DONE time — fixed it directly (nearbyParking now matches the real {rules:[...]} response shape). Node.js is now available in this environment; ran `npm run typecheck` clean. Backend suite still 161 green, 2 skipped. Waiting on Codex to mark X4/X5 DONE before the final sam-local/deploy smoke test.
 - 2026-07-20 18:28 · Codex · Completed X4/X5: Postgres repository and documented scan/cache SQL. Claude Code review passed; backend suite green (161 tests, 2 env-guarded skips).
 - 2026-07-20 (later) · Claude Code · C10 done: re-verified X4/X5 (re-read ExtractionRecord.java, confirmed no drift, reran full suite — 161 green). Committed X4/X5 to git. **Phase 2 code review complete — all of C8-C10, X1-X5, P1-P4 done.** Opened C11 for the actual deploy/smoke test, which is a separate step (touches real AWS resources) — will confirm with user before running `sam deploy`.
+
+---
+
+# PHASE 2.5 — Gov Data ETL, multi-city (kicked off 2026-07-20)
+
+> Spec: `docs/plans/phase2.5-gov-data-etl.md` — read it BEFORE starting; verified endpoints,
+> architecture, and decisions G1-G7 live there. **User explicitly asked this NOT be SF-only** —
+> NYC, Chicago, LA, SF, Seattle all have curl-verified real data sources. New small interface
+> `GovDataFeed` (bulk enumeration, distinct from Phase 1's point-query `SignSource` — don't
+> conflate them, see G7) feeds `RuleRepository.save` unchanged; this is a batch ETL job feeding
+> the existing Postgres/PostGIS cache, so `/check`/`/nearby` need **zero code changes**.
+
+## Claude Code — Phase 2.5
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| C13 | Plan doc (`docs/plans/phase2.5-gov-data-etl.md`) + `CLAUDE.md`/`PROGRESS.md`/`AGENTS.md` updates | DONE | 2026-07-20 | Verified 5 city endpoints via direct curl/PowerShell (not WebFetch summaries, which proved unreliable) before writing the spec: NYC Socrata `afgb-4qw7`, Chicago Socrata `u9xt-hiju`, LA Socrata `s49e-q6j2`+`jp2s-nfz4`, SF ArcGIS FeatureServer 24, Seattle ArcGIS `Peak_Hour_Parking_Restrictions`/`SDOT_Street_Signs`. Deliberately did NOT catalogue exact field names (only endpoint existence) — left as a live-verify-first step in X8/X9 to avoid repeating the SF Socrata-vs-ArcGIS mistake upstream. |
+| C14 | `com.parkable.cli.GovDataImportCli` — composition root wiring `GovCityConfig` (per-city `GovDataFeed`+`GovRuleMapper`) to `RuleRepository.save`, reflective/deferred loading so it can be written before X6-X9 land | TODO | | Depends on X6-X9's class names/constructors (spec them precisely once Codex starts, mirroring D6's reflective-constructor pattern from Phase 2) |
+| C15 | Review X6-X9; live smoke test against ≥1 real city dataset; confirm `/nearby` returns gov-tagged rows | IN_PROGRESS | 2026-07-21 | Review done (see log) — clean pass, committing now. Live smoke test needs C14 (importer) to exist first. |
+
+## Codex — Phase 2.5
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| X6 | `com.parkable.datasource.SocrataGovDataFeed` (new `GovDataFeed` interface, distinct from `SignSource`) — generic SODA transport, full pagination, fixture-tested | DONE | 2026-07-21 | Lazy `$limit`/`$offset` pagination; optional `SOCRATA_APP_TOKEN`; no default-test network. |
+| X7 | `com.parkable.datasource.ArcGisGovDataFeed` (implements `GovDataFeed`) — generic FeatureServer transport, full pagination, fixture-tested | DONE | 2026-07-21 | Lazy `resultOffset` pagination; raw feature/geometry retained; no default-test network. |
+| X8 | `GovRuleMapper` interface + NYC/Chicago/LA mappers — **live-verify real field names first** (`$limit=3` query), then fixture tests from that same query | DONE | 2026-07-21 | Live fields verified. NYC maps only explicit schedules; Chicago/LA samples lack days/hours and are honestly dropped. |
+| X9 | SF + Seattle mappers (ArcGIS-backed; Seattle has 2 relevant layers) — same live-verify-first approach | DONE | 2026-07-21 | Live fields verified. SF time limits and scheduled Seattle no-parking signs map; Seattle peak-hour records lack days and are dropped. |
+
+## Copilot — Phase 2.5
+
+| ID | Task | Status | Updated | Notes |
+|----|------|--------|---------|-------|
+| P5 | (optional) `mobile/`: surface `source` (gov_data vs camera_scan) on verdict/nearby UI | TODO | | Not blocking — nice-to-have once gov data actually lands in the DB |
+
+## Coordination Log (append-only, continued)
+
+- 2026-07-20 (later) · Claude Code · Phase 2.5 kicked off per explicit user request to broaden beyond SF. Verified NYC/Chicago/LA/SF/Seattle endpoints live via curl/PowerShell before writing `docs/plans/phase2.5-gov-data-etl.md`. Opened C14/C15 (self) and X6-X9 (Codex) — all independently startable, no cross-blocking. P5 (Copilot) is optional polish, not required for gov data to reach the DB/API. Codex: please pick up X6-X9 when free; X6/X7 (transport adapters) have zero city-specific knowledge and can start immediately, X8/X9 (mappers) need a live field-name check first (see plan §2 — do not guess field names from `docs/schema.md`'s Phase-1-era speculative tables).
+- 2026-07-21 · Codex · Started X6-X9: GovDataFeed transports and live-verified city rule mappers.
+- 2026-07-21 · Codex · Completed X6-X9: generic Socrata/ArcGIS feeds plus five live-schema-verified mappers; full backend suite green (182 tests, 3 env-guarded skips). C14 handoff: `SocrataGovDataFeed(String domain, String datasetId)`, `ArcGisGovDataFeed(String queryUrl)`, and no-arg `NycSignMapper`, `ChicagoSignMapper`, `LaSignMapper`, `SfSignMapper`, `SeattleSignMapper`.
+- 2026-07-21 · Claude Code · C15 review (partial — X6-X9 code review done): clean pass, no bugs, no architecture-rule violations, no ownership overreach (all new files strictly within `com.parkable.datasource`). Independently re-verified two of Codex's field-mapping claims against the real live APIs rather than trusting the fixtures at face value: (1) NYC `afgb-4qw7` — curled it live, got back the exact same record Codex's test fixture uses (`order_number":"S-01691790"`, same sign_description/coords) — confirms they queried the real endpoint rather than inventing plausible field names; (2) SF FeatureServer 24 — curled its field schema, confirmed `OBJECTID`/`REGULATION`/`DAYS`/`HRS_BEGIN`/`HRS_END`/`HRLIMIT` are all real fields. Full suite reran green (182 tests, 3 env-guarded skips). One honest architectural note, not a bug: Chicago/LA mappers and Seattle's peak-hour records return empty lists — their verified live datasets genuinely lack enforcement days/hours (Chicago's permit-zone feed has no schedule; LA's meter feed has no hours; LA's seasonal feed has geometry but no regulation), so dropping rather than guessing is the correct call given `GovRuleMapper.map()` has no confidence-score channel to express partial certainty (unlike the camera-scan schema). Committing X6-X9 now; starting C14 (import CLI) using the constructor contract from Codex's handoff note above.
