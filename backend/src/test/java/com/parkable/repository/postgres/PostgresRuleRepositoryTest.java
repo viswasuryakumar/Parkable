@@ -1,0 +1,117 @@
+package com.parkable.repository.postgres;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.parkable.extraction.ClaudeVisionExtractor;
+import com.parkable.extraction.dto.ExtractionEnvelope;
+import com.parkable.extraction.dto.RuleDto;
+import com.parkable.lambda.port.RuleLookup;
+import com.parkable.lambda.port.StoredRule;
+import com.parkable.model.NoParkingRule;
+import com.parkable.repository.ExtractionRecord;
+import com.parkable.repository.RuleRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class PostgresRuleRepositoryTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void exposesOnlyTheD6JdbcUrlConstructorAndBothRepositoryPorts() {
+        Constructor<?>[] constructors = PostgresRuleRepository.class.getConstructors();
+
+        assertThat(constructors).hasSize(1);
+        assertThat(constructors[0].getParameterTypes()).containsExactly(String.class);
+        assertThat(RuleRepository.class.isAssignableFrom(PostgresRuleRepository.class)).isTrue();
+        assertThat(RuleLookup.class.isAssignableFrom(PostgresRuleRepository.class)).isTrue();
+    }
+
+    @Test
+    void mapsStoredJsonBackToTheDomainRuleAndKeepsProvenance() throws IOException {
+        ExtractionRecord record = record();
+        String json = PostgresRuleRepository.encodeRule(record, record.envelope().rules().getFirst());
+
+        StoredRule stored = PostgresRuleRepository.toStoredRule(json, record.source(), record.parserVersion());
+
+        assertThat(stored.rule()).isInstanceOf(NoParkingRule.class);
+        assertThat(stored.rule().metadata().ruleId()).isEqualTo("sign-rule-1");
+        assertThat(stored.source()).isEqualTo("camera_scan");
+        assertThat(stored.parserVersion()).isEqualTo(ClaudeVisionExtractor.PARSER_VERSION);
+        assertThat(json).contains("_parkable", "photo-1.jpg", record.extractionId());
+    }
+
+    @Test
+    void usesPreparedStatementSqlWithParserFilterAndLongitudeFirstPostgisPoints() {
+        assertThat(PostgresRuleRepository.UPSERT_RULE)
+                .contains("ST_MakePoint(?, ?)", "ON CONFLICT (id)", "?::jsonb");
+        assertThat(PostgresRuleRepository.FIND_WITHIN)
+                .contains("parser_version = ?", "ST_DWithin", "ST_Distance", "ST_MakePoint(?, ?)");
+    }
+
+    @Test
+    void rejectsInvalidConnectionUrlAndLookupArgumentsBeforeDatabaseWork() {
+        assertThatThrownBy(() -> new PostgresRuleRepository(" "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("jdbcUrl");
+
+        PostgresRuleRepository repository = new PostgresRuleRepository("jdbc:postgresql://example.invalid/db");
+        assertThatThrownBy(() -> repository.findWithin(91, 0, 25))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("latitude");
+        assertThatThrownBy(() -> repository.findWithin(0, 0, -1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("radiusMeters");
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "PARKABLE_DB_URL", matches = ".+")
+    void savesAndFindsARuleAgainstConfiguredPostgres() throws Exception {
+        String jdbcUrl = System.getenv("PARKABLE_DB_URL");
+        ExtractionRecord record = record();
+        RuleDto rule = record.envelope().rules().getFirst();
+        PostgresRuleRepository repository = new PostgresRuleRepository(jdbcUrl);
+        UUID id = PostgresRuleRepository.stableRuleId(record.extractionId(), rule.ruleId());
+
+        try {
+            repository.save(record);
+
+            List<StoredRule> found = repository.findWithin(37.7749, -122.4194, 25);
+            assertThat(found).extracting(item -> item.rule().metadata().ruleId()).contains(rule.ruleId());
+            assertThat(repository.findByExtractionId(record.extractionId())).contains(record);
+        } finally {
+            try (Connection connection = DriverManager.getConnection(jdbcUrl);
+                 PreparedStatement delete = connection.prepareStatement("DELETE FROM rules WHERE id = ?")) {
+                delete.setObject(1, id);
+                delete.executeUpdate();
+            }
+        }
+    }
+
+    private static ExtractionRecord record() throws IOException {
+        ExtractionEnvelope fixture = MAPPER.readValue(
+                Files.readString(Path.of("src/test/resources/fixtures/sign.json")), ExtractionEnvelope.class);
+        ExtractionEnvelope envelope = new ExtractionEnvelope(
+                "postgres-test-" + UUID.randomUUID(), fixture.source(), fixture.city(), fixture.state(),
+                ClaudeVisionExtractor.PARSER_VERSION, fixture.ingestionTimestamp(), fixture.extractionMethod(),
+                fixture.confidence(), fixture.coverageCompleteness(), fixture.notes(), fixture.rawText(), fixture.rules());
+        return new ExtractionRecord(
+                envelope, "photo-1.jpg", "camera_scan", ClaudeVisionExtractor.PARSER_VERSION,
+                Optional.of(new ExtractionRecord.GpsCoordinates(37.7749, -122.4194)),
+                Instant.parse("2026-07-20T22:00:00Z"));
+    }
+}
