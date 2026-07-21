@@ -10,15 +10,8 @@ import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlockParam;
 import com.anthropic.models.messages.ThinkingConfigAdaptive;
-import com.fasterxml.jackson.core.JacksonException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.parkable.extraction.dto.ExtractionEnvelope;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.List;
@@ -46,8 +39,6 @@ public final class ClaudeVisionExtractor implements VisionExtractor {
     // Single named constant so a model upgrade is a one-line change.
     static final String CLAUDE_VISION_MODEL = "claude-opus-4-8";
 
-    private static final String SCHEMA_RESOURCE = "/schema/parking-rule-schema.json";
-
     private final AnthropicClient client;
     private final Clock clock;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -60,7 +51,7 @@ public final class ClaudeVisionExtractor implements VisionExtractor {
     ClaudeVisionExtractor(AnthropicClient client, Clock clock) {
         this.client = Objects.requireNonNull(client, "client");
         this.clock = Objects.requireNonNull(clock, "clock");
-        this.schemaJson = loadSchemaJson();
+        this.schemaJson = ExtractionSchema.loadJson();
     }
 
     @Override
@@ -113,53 +104,11 @@ public final class ClaudeVisionExtractor implements VisionExtractor {
     ExtractionResult parseResponse(String responseText, ImageInput image) {
         ExtractionMetadata metadata = new ExtractionMetadata(
                 image.sourceReference().toString(), PARSER_VERSION, clock.instant());
-
-        // Models occasionally wrap JSON in prose or markdown fences despite
-        // instructions; extracting the outermost object tolerates that
-        // without accepting arbitrary garbage (the schema validator still
-        // gets the final say).
-        int start = responseText.indexOf('{');
-        int end = responseText.lastIndexOf('}');
-        if (start == -1 || end <= start) {
-            return new ExtractionResult.NeedsReview(
-                    "Extraction did not produce parseable JSON.",
-                    List.of("Model response contained no JSON object"),
-                    metadata);
-        }
-
-        try {
-            JsonNode rawJson = mapper.readTree(responseText.substring(start, end + 1));
-            ExtractionEnvelope envelope = mapper.treeToValue(rawJson, ExtractionEnvelope.class);
-            return new ExtractionResult.Success(envelope, rawJson, metadata);
-        } catch (JacksonException e) {
-            return new ExtractionResult.NeedsReview(
-                    "Extraction did not produce parseable JSON.",
-                    List.of("Model response JSON invalid: " + e.getOriginalMessage()),
-                    metadata);
-        }
+        return ExtractionResponseParser.parse(responseText, mapper, metadata);
     }
 
     private String buildPrompt() {
-        return """
-                Analyze this parking sign photo. Extract every distinct parking regulation \
-                visible on the sign(s).
-
-                Return ONLY a single JSON object (no prose, no markdown fences) that is an \
-                ExtractionEnvelope valid against this JSON Schema:
-
-                %s
-
-                Requirements:
-                - source: "camera_scan"; extraction_method: "llm"; parser_version: "%s"
-                - ingestion_timestamp: "%s"
-                - extraction_id: a fresh UUID
-                - raw_text: your best-effort transcription of ALL text on the sign
-                - confidence: your honest 0-1 estimate; use a LOW value if the sign is \
-                blurry, cropped, or partially occluded
-                - times in 24h HH:mm; days as MON..SUN; one rule object per distinct regulation
-                - Do NOT guess fields you cannot read. Never decide whether parking is \
-                allowed - only transcribe the rules.
-                """.formatted(schemaJson, PARSER_VERSION, clock.instant());
+        return ExtractionPrompt.build(schemaJson, PARSER_VERSION, clock.instant());
     }
 
     private static Base64ImageSource.MediaType mediaTypeOf(String mediaType) {
@@ -170,16 +119,5 @@ public final class ClaudeVisionExtractor implements VisionExtractor {
             case "image/webp" -> Base64ImageSource.MediaType.IMAGE_WEBP;
             default -> throw new VisionExtractionException("Unsupported image media type: " + mediaType);
         };
-    }
-
-    private static String loadSchemaJson() {
-        try (InputStream in = ClaudeVisionExtractor.class.getResourceAsStream(SCHEMA_RESOURCE)) {
-            if (in == null) {
-                throw new IllegalStateException("Schema resource missing from classpath: " + SCHEMA_RESOURCE);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read schema resource " + SCHEMA_RESOURCE, e);
-        }
     }
 }

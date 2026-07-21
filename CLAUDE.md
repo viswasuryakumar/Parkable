@@ -28,7 +28,7 @@ Claude Code responsibilities beyond its own tasks: keep the build green, triage 
 | API | AWS Lambda (Java 21) |
 | Rules Engine | Plain Java (fully unit-tested) |
 | Database | Supabase Postgres + PostGIS |
-| Vision | Claude Vision (via VisionExtractor interface) |
+| Vision | OpenRouter (cheapest available vision model) or Claude Vision, via `VisionExtractor` interface |
 | Evals | LangSmith |
 
 ## 5-Phase Build Plan

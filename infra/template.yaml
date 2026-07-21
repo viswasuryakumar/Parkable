@@ -8,10 +8,10 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /parkable/db-url
     Description: SSM path for the Supabase/Postgres connection string
-  AnthropicApiKeyParameter:
+  OpenRouterApiKeyParameter:
     Type: AWS::SSM::Parameter::Value<String>
-    Default: /parkable/anthropic-api-key
-    Description: SSM path for the Anthropic API key used by live extraction
+    Default: /parkable/openrouter-api-key
+    Description: SSM path for the OpenRouter API key used by live extraction (cheapest vision-capable model, see OpenRouterVisionExtractor)
   BucketName:
     Type: String
     Default: parkable-photos
@@ -40,7 +40,7 @@ Resources:
       Environment:
         Variables:
           PARKABLE_DB_URL: !Ref DatabaseUrlParameter
-          ANTHROPIC_API_KEY: !Ref AnthropicApiKeyParameter
+          OPENROUTER_API_KEY: !Ref OpenRouterApiKeyParameter
           PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
           AWS_REGION: !Ref AWS::Region
       Policies:
@@ -79,7 +79,7 @@ Resources:
       Environment:
         Variables:
           PARKABLE_DB_URL: !Ref DatabaseUrlParameter
-          ANTHROPIC_API_KEY: !Ref AnthropicApiKeyParameter
+          OPENROUTER_API_KEY: !Ref OpenRouterApiKeyParameter
           PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
           AWS_REGION: !Ref AWS::Region
       Policies:
@@ -118,7 +118,7 @@ Resources:
       Environment:
         Variables:
           PARKABLE_DB_URL: !Ref DatabaseUrlParameter
-          ANTHROPIC_API_KEY: !Ref AnthropicApiKeyParameter
+          OPENROUTER_API_KEY: !Ref OpenRouterApiKeyParameter
           PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
           AWS_REGION: !Ref AWS::Region
       Policies:

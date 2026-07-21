@@ -43,6 +43,16 @@ rule carries `source` + `parser_version`.
   tests never need cloud credentials.
 - **D5 — Cache validity**: a stored rule answers a /check only if its `parser_version`
   matches the current parser (Phase 1 reproducibility contract).
+- **D7 — Default extraction provider is OpenRouter, not Claude directly (2026-07-20 user decision)**:
+  `ExtractorFactory` prefers `OPENROUTER_API_KEY` over `ANTHROPIC_API_KEY` (Claude still works if
+  only that key is set — the Strategy interface made this a config change, zero engine edits).
+  OpenRouter proxies many vendors' vision-capable models through one OpenAI-compatible API, so a
+  cost-sensitive deployment can point at whichever model is currently cheapest via one env var,
+  `OPENROUTER_MODEL` (default `openai/gpt-4o-mini` — check https://openrouter.ai/models,
+  filter "supports image input", before trusting the default is still the cheapest). No official
+  OpenRouter Java SDK exists; `OpenRouterVisionExtractor` talks its REST API directly via
+  `java.net.http.HttpClient`. SAM template's SSM parameter is `/parkable/openrouter-api-key`
+  (`OpenRouterApiKeyParameter`), replacing the earlier Anthropic-only parameter.
 - **D6 — PostgresRuleRepository constructor contract**: a single public constructor
   taking the JDBC URL as one `String` (e.g. `public PostgresRuleRepository(String jdbcUrl)`),
   implementing both `RuleRepository` and `RuleLookup` on the same class. C9's

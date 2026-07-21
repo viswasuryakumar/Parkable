@@ -13,14 +13,17 @@ class EnvConfigTest {
         EnvConfig config = EnvConfig.from(Map.of());
 
         assertThat(config.dbUrl()).isEmpty();
+        assertThat(config.openRouterApiKey()).isEmpty();
         assertThat(config.anthropicApiKey()).isEmpty();
     }
 
     @Test
     void blankValuesAreTreatedAsAbsent() {
-        EnvConfig config = EnvConfig.from(Map.of("PARKABLE_DB_URL", "   ", "ANTHROPIC_API_KEY", ""));
+        EnvConfig config = EnvConfig.from(Map.of(
+                "PARKABLE_DB_URL", "   ", "OPENROUTER_API_KEY", "", "ANTHROPIC_API_KEY", ""));
 
         assertThat(config.dbUrl()).isEmpty();
+        assertThat(config.openRouterApiKey()).isEmpty();
         assertThat(config.anthropicApiKey()).isEmpty();
     }
 
@@ -28,9 +31,11 @@ class EnvConfigTest {
     void presentValuesArePassedThrough() {
         EnvConfig config = EnvConfig.from(Map.of(
                 "PARKABLE_DB_URL", "jdbc:postgresql://host/db",
+                "OPENROUTER_API_KEY", "sk-or-test",
                 "ANTHROPIC_API_KEY", "sk-ant-test"));
 
         assertThat(config.dbUrl()).contains("jdbc:postgresql://host/db");
+        assertThat(config.openRouterApiKey()).contains("sk-or-test");
         assertThat(config.anthropicApiKey()).contains("sk-ant-test");
     }
 }

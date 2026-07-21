@@ -42,8 +42,10 @@
 # PHASE 2 — AWS Backend (kicked off 2026-07-17)
 
 > Spec: `docs/plans/phase2-aws-backend.md` — read it BEFORE starting; API contract, ports,
-> and decisions D1–D5 live there. Build now targets `release 21` (Lambda runtime). New deps
-> (aws-lambda-java-core/events, postgresql) are already in the pom.
+> and decisions D1–D7 live there. Build now targets `release 21` (Lambda runtime). New deps
+> (aws-lambda-java-core/events, postgresql) are already in the pom. **D7 (2026-07-20):**
+> default extraction provider is now OpenRouter (`OPENROUTER_API_KEY`, cheapest vision model),
+> Claude still works via `ANTHROPIC_API_KEY` as a fallback.
 
 ## Claude Code — Phase 2
 
@@ -52,7 +54,8 @@
 | C8 | `com.parkable.lambda`: CheckHandler, NearbyHandler, ScanHandler (thin, D2 events), `port.RuleLookup` + `StoredRule`, response DTOs, tests over in-memory fakes | DONE | 2026-07-17 | 11 handler tests; 146 total green. RuleLookup port ready for X4 |
 | C9 | Env-var wiring (D4) + SSM config loading; Lambda packaging | DONE | 2026-07-17 | `com.parkable.lambda.config`: EnvConfig, StorageStack (reflective Postgres load per new decision D6, in-memory fallback), InMemoryRuleLookup, ExtractorFactory. All 3 handlers got public no-arg constructors (what Lambda actually invokes) alongside existing test constructors. SSM itself is resolved to plain env vars by the SAM template (P3's job, `{{resolve:ssm-secure:...}}`) — Java code only reads `System.getenv()`. Packaging: no pom change needed, existing shaded jar already contains `com.parkable.lambda.*` (see plan §6.1). 156 tests green. |
 | C10 | Review X4/X5/P3/P4 | DONE | 2026-07-20 | All 4 deliverables reviewed and confirmed correct (2 real bugs found and fixed — SAM single-function routing by Copilot, mobile nearbyParking shape by Claude Code). Re-checked ExtractionRecord.java as part of final pass — clean, unchanged. Backend 161 tests green, 2 env-guarded skips; mobile typecheck clean. All Phase 2 code now committed. |
-| C11 | End-to-end deploy + smoke test (`sam deploy` or CloudShell) against real AWS/Supabase | TODO | | Needs U2's SAM CLI gap resolved (CloudShell) + U3 (Anthropic key) if testing live extraction. First real-AWS-spend step — confirm with user before running `sam deploy`. |
+| C11 | End-to-end deploy + smoke test (`sam deploy` or CloudShell) against real AWS/Supabase | TODO | | Needs U2's SAM CLI gap resolved (CloudShell). SSM param renamed per D7: `/parkable/openrouter-api-key` (not Anthropic). First real-AWS-spend step — confirm with user before running `sam deploy`. |
+| C12 | Add OpenRouterVisionExtractor (D7): new provider alongside Claude, ExtractorFactory prefers it when configured | DONE | 2026-07-20 | New `OpenRouterVisionExtractor` (java.net.http, OpenAI-compatible chat completions, no official SDK exists). Extracted shared `ExtractionPrompt`/`ExtractionSchema`/`ExtractionResponseParser` from ClaudeVisionExtractor so both providers share identical prompt/parsing logic (zero behavior change for Claude, verified by its existing tests staying green). `EnvConfig` + `ExtractorFactory` updated: OpenRouter > Claude > Fixture priority. Model is configurable via `OPENROUTER_MODEL` (default `openai/gpt-4o-mini`) since OpenRouter's cheapest-model listing couldn't be reliably verified via WebFetch (summarizer produced suspicious/likely-fabricated model names) — defaulted to a model I'm confident is real rather than risk a hallucinated ID breaking at runtime. `infra/template.yaml` + `samconfig.toml.example` updated to the new `/parkable/openrouter-api-key` SSM param. 170 tests green, 3 env-guarded skips. |
 
 ## Codex — Phase 2
 
