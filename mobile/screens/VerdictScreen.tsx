@@ -23,7 +23,7 @@ export default function VerdictScreen({ lat = 37.7749, lng = -122.4194 }: Verdic
           return;
         }
         setVerdict(result.verdict);
-        setReason(result.reason);
+        setReason(result.reason ?? 'No specific reason was returned.');
       } catch (e) {
         if (!active) {
           return;

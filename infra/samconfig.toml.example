@@ -1,0 +1,9 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "parkable-api"
+resolve_s3 = true
+s3_prefix = "parkable-api"
+region = "us-west-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "DatabaseUrlParameter=/parkable/db-url AnthropicApiKeyParameter=/parkable/anthropic-api-key BucketName=parkable-photos"

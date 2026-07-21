@@ -1,10 +1,13 @@
 import React from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
 import { Camera } from 'expo-camera';
 import * as Location from 'expo-location';
+import { scanParking } from '../services/api';
 
 export default function CameraScreen() {
   const [permission, setPermission] = React.useState<'granted' | 'pending' | 'denied'>('pending');
+  const [status, setStatus] = React.useState('Ready to inspect a sign.');
+  const [uploading, setUploading] = React.useState(false);
 
   React.useEffect(() => {
     async function requestPermissions() {
@@ -20,6 +23,27 @@ export default function CameraScreen() {
     requestPermissions();
   }, []);
 
+  async function handleCapture() {
+    setUploading(true);
+    setStatus('Uploading sign photo…');
+
+    try {
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+      const payload = {
+        photo_base64: 'placeholder-base64',
+        media_type: 'image/jpeg',
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      };
+      const result = await scanParking(payload);
+      setStatus(result.reason ?? result.verdict);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   if (permission !== 'granted') {
     return (
       <View style={styles.container}>
@@ -33,8 +57,10 @@ export default function CameraScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Camera flow</Text>
       <Text>Capture a sign photo and upload it for verification.</Text>
-      <Button title="Capture photo" onPress={() => {}} />
-      <Text style={styles.note}>Low-confidence results will trigger a retake prompt.</Text>
+      {uploading ? <ActivityIndicator size="large" /> : null}
+      <Button title="Capture photo" onPress={handleCapture} disabled={uploading} />
+      <Text style={styles.note}>{status}</Text>
+      <Text style={styles.note}>422 responses from the backend will prompt a retake flow.</Text>
     </View>
   );
 }

@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Parkable API Gateway + Lambda stack for /scan, /check, and /nearby
+
+Parameters:
+  DatabaseUrlParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /parkable/db-url
+    Description: SSM path for the Supabase/Postgres connection string
+  AnthropicApiKeyParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /parkable/anthropic-api-key
+    Description: SSM path for the Anthropic API key used by live extraction
+  BucketName:
+    Type: String
+    Default: parkable-photos
+    Description: Name of the S3 bucket used for scan photos
+
+Resources:
+  PhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: parkable-check
+      Runtime: java21
+      Timeout: 30
+      MemorySize: 1024
+      CodeUri: ../backend/target/parkable-cli.jar
+      Handler: com.parkable.lambda.CheckHandler::handleRequest
+      Environment:
+        Variables:
+          PARKABLE_DB_URL: !Ref DatabaseUrlParameter
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKeyParameter
+          PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
+          AWS_REGION: !Ref AWS::Region
+      Policies:
+        - Statement:
+            - Sid: ReadParameters
+              Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: '*'
+            - Sid: ReadWritePhotos
+              Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !Sub arn:aws:s3:::${PhotosBucket}
+                - !Sub arn:aws:s3:::${PhotosBucket}/*
+      Events:
+        CheckRoute:
+          Type: Api
+          Properties:
+            Path: /check
+            Method: get
+
+  NearbyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: parkable-nearby
+      Runtime: java21
+      Timeout: 30
+      MemorySize: 1024
+      CodeUri: ../backend/target/parkable-cli.jar
+      Handler: com.parkable.lambda.NearbyHandler::handleRequest
+      Environment:
+        Variables:
+          PARKABLE_DB_URL: !Ref DatabaseUrlParameter
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKeyParameter
+          PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
+          AWS_REGION: !Ref AWS::Region
+      Policies:
+        - Statement:
+            - Sid: ReadParameters
+              Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: '*'
+            - Sid: ReadWritePhotos
+              Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !Sub arn:aws:s3:::${PhotosBucket}
+                - !Sub arn:aws:s3:::${PhotosBucket}/*
+      Events:
+        NearbyRoute:
+          Type: Api
+          Properties:
+            Path: /nearby
+            Method: get
+
+  ScanFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: parkable-scan
+      Runtime: java21
+      Timeout: 30
+      MemorySize: 1024
+      CodeUri: ../backend/target/parkable-cli.jar
+      Handler: com.parkable.lambda.ScanHandler::handleRequest
+      Environment:
+        Variables:
+          PARKABLE_DB_URL: !Ref DatabaseUrlParameter
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKeyParameter
+          PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
+          AWS_REGION: !Ref AWS::Region
+      Policies:
+        - Statement:
+            - Sid: ReadParameters
+              Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: '*'
+            - Sid: ReadWritePhotos
+              Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !Sub arn:aws:s3:::${PhotosBucket}
+                - !Sub arn:aws:s3:::${PhotosBucket}/*
+      Events:
+        ScanRoute:
+          Type: Api
+          Properties:
+            Path: /scan
+            Method: post
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint for Parkable
+    Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod
+  BucketName:
+    Description: S3 bucket for uploaded scan photos
+    Value: !Ref PhotosBucket
