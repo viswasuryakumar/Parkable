@@ -42,7 +42,6 @@ Resources:
           PARKABLE_DB_URL: !Ref DatabaseUrlParameter
           OPENROUTER_API_KEY: !Ref OpenRouterApiKeyParameter
           PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
-          AWS_REGION: !Ref AWS::Region
       Policies:
         - Statement:
             - Sid: ReadParameters
@@ -81,7 +80,6 @@ Resources:
           PARKABLE_DB_URL: !Ref DatabaseUrlParameter
           OPENROUTER_API_KEY: !Ref OpenRouterApiKeyParameter
           PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
-          AWS_REGION: !Ref AWS::Region
       Policies:
         - Statement:
             - Sid: ReadParameters
@@ -120,7 +118,6 @@ Resources:
           PARKABLE_DB_URL: !Ref DatabaseUrlParameter
           OPENROUTER_API_KEY: !Ref OpenRouterApiKeyParameter
           PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
-          AWS_REGION: !Ref AWS::Region
       Policies:
         - Statement:
             - Sid: ReadParameters

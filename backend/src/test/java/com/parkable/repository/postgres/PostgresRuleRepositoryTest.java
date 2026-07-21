@@ -79,6 +79,26 @@ class PostgresRuleRepositoryTest {
     }
 
     @Test
+    void neverLeaksCredentialsFromTheJdbcUrlWhenAConnectionFails() {
+        // example.invalid (RFC 2606) never resolves, forcing a real connection
+        // failure without a live database. A production incident showed the
+        // JDBC driver's own exception embeds the full URL, credentials
+        // included, in its message — assert that string never survives into
+        // any exception in the chain this repository throws.
+        String secret = "s3cr3t-password-should-never-leak";
+        PostgresRuleRepository repository =
+                new PostgresRuleRepository("jdbc:postgresql://user:" + secret + "@example.invalid/db");
+
+        Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(
+                () -> repository.findWithin(37.7749, -122.4194, 25));
+
+        assertThat(thrown).isNotNull();
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
+            assertThat(t.getMessage()).as("exception in chain: " + t.getClass()).doesNotContain(secret);
+        }
+    }
+
+    @Test
     @EnabledIfEnvironmentVariable(named = "PARKABLE_DB_URL", matches = ".+")
     void savesAndFindsARuleAgainstConfiguredPostgres() throws Exception {
         String jdbcUrl = System.getenv("PARKABLE_DB_URL");

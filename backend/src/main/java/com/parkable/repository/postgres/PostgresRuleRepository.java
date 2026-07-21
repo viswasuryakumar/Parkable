@@ -210,7 +210,20 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
     }
 
     private Connection openConnection() throws SQLException {
-        return DriverManager.getConnection(jdbcUrl);
+        try {
+            return DriverManager.getConnection(jdbcUrl);
+        } catch (SQLException e) {
+            // DriverManager bakes the full connection string - credentials
+            // included - into its own exception message, and that message
+            // otherwise propagates verbatim into Lambda's CloudWatch logs.
+            // Deliberately do NOT chain the original exception as a cause:
+            // any stack-trace printer would still render its message.
+            throw new SQLException("Failed to connect to Postgres (see " + redactedUrl() + ")", e.getSQLState());
+        }
+    }
+
+    private String redactedUrl() {
+        return jdbcUrl.replaceAll("://[^@/]+@", "://<redacted>@");
     }
 
     private static List<PersistedRule> readPersistedRules(ResultSet results) throws SQLException {
