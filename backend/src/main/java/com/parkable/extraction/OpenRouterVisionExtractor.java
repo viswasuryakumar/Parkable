@@ -1,5 +1,6 @@
 package com.parkable.extraction;
 
+import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -14,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -63,19 +65,50 @@ public final class OpenRouterVisionExtractor implements VisionExtractor {
 
     @Override
     public ExtractionResult extract(ImageInput image) {
-        String responseText;
+        HttpResponse<String> response;
         try {
-            responseText = callOpenRouter(image);
+            response = sendRequest(image);
         } catch (IOException e) {
             throw new VisionExtractionException("OpenRouter API call failed for " + image.sourceReference(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new VisionExtractionException("OpenRouter API call interrupted for " + image.sourceReference(), e);
         }
-        return parseResponse(responseText, image);
+
+        if (response.statusCode() == 400) {
+            // The provider rejected the INPUT itself (unreadable/malformed
+            // image, content policy, etc.) - an expected "couldn't read this
+            // sign" outcome, not a transport/infra failure. Everything else
+            // non-2xx (auth, quota, 5xx) is genuinely exceptional and throws
+            // below, since retrying the same photo can't fix those.
+            ExtractionMetadata metadata = new ExtractionMetadata(
+                    image.sourceReference().toString(), PARSER_VERSION, clock.instant());
+            return new ExtractionResult.NeedsReview(
+                    "Extraction did not produce parseable JSON.",
+                    List.of("OpenRouter rejected the input: " + response.body()),
+                    metadata);
+        }
+        if (response.statusCode() / 100 != 2) {
+            throw new VisionExtractionException("OpenRouter returned HTTP " + response.statusCode()
+                    + " for " + image.sourceReference() + ": " + response.body());
+        }
+
+        JsonNode root;
+        try {
+            root = mapper.readTree(response.body());
+        } catch (JacksonException e) {
+            throw new VisionExtractionException("OpenRouter response envelope was not valid JSON", e);
+        }
+        JsonNode choices = root.path("choices");
+        if (!choices.isArray() || choices.isEmpty()) {
+            throw new VisionExtractionException("OpenRouter response had no choices: " + response.body());
+        }
+        String content = choices.get(0).path("message").path("content").asText();
+
+        return parseResponse(content, image);
     }
 
-    private String callOpenRouter(ImageInput image) throws IOException, InterruptedException {
+    private HttpResponse<String> sendRequest(ImageInput image) throws IOException, InterruptedException {
         String dataUrl = "data:" + image.mediaType() + ";base64,"
                 + Base64.getEncoder().encodeToString(image.bytes());
 
@@ -106,17 +139,7 @@ public final class OpenRouterVisionExtractor implements VisionExtractor {
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body), StandardCharsets.UTF_8))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() / 100 != 2) {
-            throw new IOException("OpenRouter returned HTTP " + response.statusCode() + ": " + response.body());
-        }
-
-        JsonNode root = mapper.readTree(response.body());
-        JsonNode choices = root.path("choices");
-        if (!choices.isArray() || choices.isEmpty()) {
-            throw new IOException("OpenRouter response had no choices: " + response.body());
-        }
-        return choices.get(0).path("message").path("content").asText();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     /** Package-private for offline unit tests — mirrors ClaudeVisionExtractor's testing seam. */

@@ -5,6 +5,8 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -13,6 +15,9 @@ import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Offline tests exercise the response-parsing seam and model-override logic;
@@ -83,6 +88,48 @@ class OpenRouterVisionExtractorTest {
         ExtractionResult result = extractor(null).parseResponse("{\"extraction_id\": \"oops\", ", IMAGE);
 
         assertThat(result).isInstanceOf(ExtractionResult.NeedsReview.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static HttpResponse<String> mockResponse(int statusCode, String body) throws Exception {
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(statusCode);
+        when(response.body()).thenReturn(body);
+        return response;
+    }
+
+    @Test
+    void providerRejectingTheImageBecomesNeedsReviewNotACrash() throws Exception {
+        // A live deploy incident: OpenRouter returns HTTP 400 with
+        // image_parse_error when the photo itself is unreadable/malformed.
+        // That must flow into the honest retake-photo path, not a 500.
+        HttpClient mockClient = mock(HttpClient.class);
+        HttpResponse<String> response =
+                mockResponse(400, "{\"error\":{\"message\":\"You uploaded an unsupported image.\"}}");
+        when(mockClient.<String>send(any(HttpRequest.class), any())).thenReturn(response);
+        OpenRouterVisionExtractor extractor = new OpenRouterVisionExtractor(
+                "test-key-unused", null, mockClient, Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
+
+        ExtractionResult result = extractor.extract(IMAGE);
+
+        assertThat(result).isInstanceOf(ExtractionResult.NeedsReview.class);
+        assertThat(((ExtractionResult.NeedsReview) result).details())
+                .anySatisfy(d -> assertThat(d).contains("unsupported image"));
+    }
+
+    @Test
+    void authOrQuotaFailuresStillThrowRatherThanBeingSwallowed() throws Exception {
+        // Unlike a bad photo, an auth/quota/server failure can't be fixed by
+        // retaking the picture - it must surface as a real failure.
+        HttpClient mockClient = mock(HttpClient.class);
+        HttpResponse<String> response = mockResponse(401, "{\"error\":\"invalid api key\"}");
+        when(mockClient.<String>send(any(HttpRequest.class), any())).thenReturn(response);
+        OpenRouterVisionExtractor extractor = new OpenRouterVisionExtractor(
+                "test-key-unused", null, mockClient, Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> extractor.extract(IMAGE))
+                .isInstanceOf(VisionExtractionException.class)
+                .hasMessageContaining("401");
     }
 
     /**
