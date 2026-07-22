@@ -25,6 +25,7 @@ import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -101,28 +103,68 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
         this.jdbcUrl = requireNonBlank(jdbcUrl, "jdbcUrl");
     }
 
+    private static final int BATCH_FLUSH_SIZE = 500;
+
     @Override
     public void save(ExtractionRecord record) {
-        Objects.requireNonNull(record, "record");
-        ExtractionRecord.GpsCoordinates coordinates = record.gpsLocation()
-                .orElseThrow(() -> new IllegalArgumentException("Postgres storage requires gpsLocation"));
-
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement(UPSERT_RULE)) {
-            for (RuleDto rule : record.envelope().rules()) {
-                statement.setObject(1, stableRuleId(record.extractionId(), rule.ruleId()));
-                // PostGIS points take x then y: longitude before latitude.
-                statement.setDouble(2, coordinates.longitude());
-                statement.setDouble(3, coordinates.latitude());
-                statement.setString(4, encodeRule(record, rule));
-                statement.setString(5, record.source());
-                statement.setString(6, record.parserVersion());
-                statement.setObject(7, record.extractedAt());
-                statement.addBatch();
-            }
+            bindBatch(statement, record);
             statement.executeBatch();
         } catch (SQLException e) {
             throw storageFailure("save rules", e);
+        }
+    }
+
+    /**
+     * Reuses one connection and prepared statement across every record,
+     * flushing periodically - opening a fresh connection per record (what
+     * repeated {@link #save} calls would do) is fine for Lambda's one-scan-
+     * per-invocation shape, but a bulk ETL job saving thousands of records
+     * saturates the JDBC driver's connection setup and the DB's own
+     * connection limit long before it saturates actual write throughput.
+     */
+    @Override
+    public void saveAll(List<ExtractionRecord> records) {
+        if (records.isEmpty()) {
+            return;
+        }
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(UPSERT_RULE)) {
+            int pending = 0;
+            for (ExtractionRecord record : records) {
+                bindBatch(statement, record);
+                pending++;
+                if (pending >= BATCH_FLUSH_SIZE) {
+                    statement.executeBatch();
+                    pending = 0;
+                }
+            }
+            if (pending > 0) {
+                statement.executeBatch();
+            }
+        } catch (SQLException e) {
+            throw storageFailure("save rules", e);
+        }
+    }
+
+    private static void bindBatch(PreparedStatement statement, ExtractionRecord record) throws SQLException {
+        Objects.requireNonNull(record, "record");
+        ExtractionRecord.GpsCoordinates coordinates = record.gpsLocation()
+                .orElseThrow(() -> new IllegalArgumentException("Postgres storage requires gpsLocation"));
+        for (RuleDto rule : record.envelope().rules()) {
+            statement.setObject(1, stableRuleId(record.extractionId(), rule.ruleId()));
+            // PostGIS points take x then y: longitude before latitude.
+            statement.setDouble(2, coordinates.longitude());
+            statement.setDouble(3, coordinates.latitude());
+            statement.setString(4, encodeRule(record, rule));
+            statement.setString(5, record.source());
+            statement.setString(6, record.parserVersion());
+            // The pg driver can't infer an OID for java.time.Instant via
+            // plain setObject() ("Can't infer the SQL type..."); Timestamp
+            // is the type it actually knows how to bind.
+            statement.setObject(7, Timestamp.from(record.extractedAt()));
+            statement.addBatch();
         }
     }
 
@@ -247,9 +289,22 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
 
     private Connection connect() throws SQLException {
         ParsedConnection parsed = parse(jdbcUrl);
-        return parsed.user() == null
-                ? DriverManager.getConnection(parsed.url())
-                : DriverManager.getConnection(parsed.url(), parsed.user(), parsed.password());
+        Properties properties = new Properties();
+        // Supabase's pooled connection string (port 6543) runs pgbouncer in
+        // transaction-pooling mode, where the underlying server connection
+        // can be handed to a different client between statements. The pg
+        // driver's default server-side prepared-statement caching (kicks in
+        // once the same PreparedStatement has executed ~5 times) then
+        // collides with that ("prepared statement ... already exists") -
+        // found via saveAll's batch flushing, which is exactly the repeated-
+        // execution pattern that crosses the threshold. prepareThreshold=0
+        // is the documented fix for JDBC clients against pgbouncer.
+        properties.setProperty("prepareThreshold", "0");
+        if (parsed.user() != null) {
+            properties.setProperty("user", parsed.user());
+            properties.setProperty("password", parsed.password());
+        }
+        return DriverManager.getConnection(parsed.url(), properties);
     }
 
     /**

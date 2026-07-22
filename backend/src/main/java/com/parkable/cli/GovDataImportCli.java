@@ -80,24 +80,37 @@ public final class GovDataImportCli {
     }
 
     static int run(String[] args, Clock clock, PrintStream out, PrintStream err) {
+        int limit = Integer.MAX_VALUE;
+        List<String> remaining = new ArrayList<>(List.of(args));
+        for (Iterator<String> it = remaining.iterator(); it.hasNext(); ) {
+            String arg = it.next();
+            if (arg.startsWith("--limit=")) {
+                limit = Integer.parseInt(arg.substring("--limit=".length()));
+                it.remove();
+            }
+        }
         List<GovDataSource> selected;
         try {
-            selected = resolveSources(args);
+            selected = resolveSources(remaining.toArray(new String[0]));
         } catch (IllegalArgumentException e) {
             err.println("Error: " + e.getMessage());
             err.println("Known sources: " + allSources().stream().map(GovDataSource::label)
                     .collect(Collectors.joining(", ")));
-            err.println("Usage: GovDataImportCli [--all | <source> ...]");
+            err.println("Usage: GovDataImportCli [--limit=N] [--all | <source> ...]");
             return 64;
         }
         RuleRepository repository = StorageStack.from(EnvConfig.fromEnvironment()).repository();
-        return run(selected, repository, clock, out);
+        return run(selected, repository, clock, out, limit);
     }
 
     /** Testable without touching the network/environment — the actual import loop. */
     static int run(List<GovDataSource> selected, RuleRepository repository, Clock clock, PrintStream out) {
+        return run(selected, repository, clock, out, Integer.MAX_VALUE);
+    }
+
+    static int run(List<GovDataSource> selected, RuleRepository repository, Clock clock, PrintStream out, int maxRecordsPerSource) {
         for (GovDataSource source : selected) {
-            importSource(source, repository, clock, out);
+            importSource(source, repository, clock, out, maxRecordsPerSource);
         }
         return 0;
     }
@@ -116,12 +129,16 @@ public final class GovDataImportCli {
         return selected;
     }
 
-    private static void importSource(GovDataSource source, RuleRepository repository, Clock clock, PrintStream out) {
+    private static final int SAVE_BATCH_SIZE = 500;
+
+    private static void importSource(
+            GovDataSource source, RuleRepository repository, Clock clock, PrintStream out, int maxRecords) {
         int recordsSeen = 0;
         int recordsDropped = 0;
         int rulesImported = 0;
+        List<ExtractionRecord> pending = new ArrayList<>(SAVE_BATCH_SIZE);
         Iterator<JsonNode> records = source.feed().fetchAll();
-        while (records.hasNext()) {
+        while (records.hasNext() && recordsSeen < maxRecords) {
             JsonNode raw = records.next();
             recordsSeen++;
             List<MappedRule> mapped = source.mapper().map(raw);
@@ -130,9 +147,16 @@ public final class GovDataImportCli {
                 continue;
             }
             for (MappedRule rule : mapped) {
-                repository.save(toExtractionRecord(source, rule, raw, clock.instant()));
+                pending.add(toExtractionRecord(source, rule, raw, clock.instant()));
                 rulesImported++;
             }
+            if (pending.size() >= SAVE_BATCH_SIZE) {
+                repository.saveAll(pending);
+                pending.clear();
+            }
+        }
+        if (!pending.isEmpty()) {
+            repository.saveAll(pending);
         }
         out.printf("%s: %d records seen, %d rules imported, %d records dropped (no confident mapping)%n",
                 source.label(), recordsSeen, rulesImported, recordsDropped);

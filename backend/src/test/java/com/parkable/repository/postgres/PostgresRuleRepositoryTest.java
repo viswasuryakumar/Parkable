@@ -82,6 +82,27 @@ class PostgresRuleRepositoryTest {
     }
 
     @Test
+    void saveAllOfAnEmptyListNeverAttemptsAConnection() {
+        // example.invalid never resolves; reaching openConnection() at all
+        // would throw. saveAll's fast-path guard must return before that.
+        PostgresRuleRepository repository = new PostgresRuleRepository("jdbc:postgresql://example.invalid/db");
+
+        repository.saveAll(List.of());
+    }
+
+    @Test
+    void saveAllOverridesTheInterfaceDefaultInsteadOfCallingSaveOnce() throws Exception {
+        // The interface default (records.forEach(this::save)) would open one
+        // connection per record - exactly what a bulk ETL job importing
+        // thousands of rows must avoid. Confirms PostgresRuleRepository
+        // declares its own saveAll rather than inheriting that default; the
+        // actual single-connection behavior is proven live below
+        // (savesManyRecordsInOneConnectionAgainstConfiguredPostgres).
+        assertThat(PostgresRuleRepository.class.getMethod("saveAll", List.class).getDeclaringClass())
+                .isEqualTo(PostgresRuleRepository.class);
+    }
+
+    @Test
     void parsesEmbeddedLibpqStyleCredentialsForTheJdbcDriver() {
         // The pg JDBC driver does not understand libpq-style "user:pass@host"
         // credentials in the URL authority - it would try to resolve the
@@ -125,6 +146,48 @@ class PostgresRuleRepositoryTest {
         for (Throwable t = thrown; t != null; t = t.getCause()) {
             assertThat(t.getMessage()).as("exception in chain: " + t.getClass()).doesNotContain(secret);
         }
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "PARKABLE_DB_URL", matches = ".+")
+    void savesManyRecordsInOneConnectionAgainstConfiguredPostgres() throws Exception {
+        String jdbcUrl = System.getenv("PARKABLE_DB_URL");
+        PostgresRuleRepository repository = new PostgresRuleRepository(jdbcUrl);
+        List<ExtractionRecord> batch = List.of(
+                recordWithExtractionId("batch-test-1"), recordWithExtractionId("batch-test-2"),
+                recordWithExtractionId("batch-test-3"));
+        List<UUID> ids = batch.stream()
+                .map(r -> PostgresRuleRepository.stableRuleId(r.extractionId(), r.envelope().rules().getFirst().ruleId()))
+                .toList();
+
+        try {
+            repository.saveAll(batch);
+
+            for (ExtractionRecord record : batch) {
+                assertThat(repository.findByExtractionId(record.extractionId())).contains(record);
+            }
+        } finally {
+            try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
+                for (UUID id : ids) {
+                    try (PreparedStatement delete = connection.prepareStatement("DELETE FROM rules WHERE id = ?")) {
+                        delete.setObject(1, id);
+                        delete.executeUpdate();
+                    }
+                }
+            }
+        }
+    }
+
+    private static ExtractionRecord recordWithExtractionId(String extractionId) throws IOException {
+        ExtractionRecord base = record();
+        ExtractionEnvelope withId = new ExtractionEnvelope(
+                extractionId, base.envelope().source(), base.envelope().city(), base.envelope().state(),
+                base.envelope().parserVersion(), base.envelope().ingestionTimestamp(),
+                base.envelope().extractionMethod(), base.envelope().confidence(),
+                base.envelope().coverageCompleteness(), base.envelope().notes(), base.envelope().rawText(),
+                base.envelope().rules());
+        return new ExtractionRecord(withId, base.photoReference(), base.source(), base.parserVersion(),
+                base.gpsLocation(), base.extractedAt());
     }
 
     @Test
