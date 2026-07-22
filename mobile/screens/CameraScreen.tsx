@@ -17,6 +17,20 @@ const VERDICT_COLORS: Record<string, string> = {
   DEPENDS: '#d97706',
 };
 
+/**
+ * Native takePictureAsync returns bare base64; the web build returns a full
+ * data URL (data:image/png;base64,...). The API contract wants bare base64
+ * plus an explicit media_type, so normalize here and derive the real type
+ * from the prefix when present (web captures PNG, not JPEG).
+ */
+function normalizePhoto(raw: string): { base64: string; mediaType: string } {
+  const match = raw.match(/^data:(image\/[a-z+.-]+);base64,(.*)$/s);
+  if (match) {
+    return { mediaType: match[1], base64: match[2] };
+  }
+  return { mediaType: 'image/jpeg', base64: raw };
+}
+
 export default function CameraScreen() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [state, setState] = React.useState<FlowState>({ phase: 'preview' });
@@ -53,9 +67,10 @@ export default function CameraScreen() {
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      const { base64, mediaType } = normalizePhoto(photo.base64);
       const result: ScanResult = await scanParking({
-        photo_base64: photo.base64,
-        media_type: 'image/jpeg',
+        photo_base64: base64,
+        media_type: mediaType,
         lat: position.coords.latitude,
         lng: position.coords.longitude,
       });
