@@ -62,7 +62,9 @@ class PostgresRuleRepositoryTest {
         assertThat(PostgresRuleRepository.FIND_WITHIN)
                 .contains("parser_version = ANY (?)", "ST_DWithin", "ST_Distance", "ST_MakePoint(?, ?)");
         assertThat(PostgresRuleRepository.currentParserVersions())
-                .contains(ClaudeVisionExtractor.PARSER_VERSION, "gov-nyc-mapper-v1", "gov-chicago-mapper-v1",
+                .contains(ClaudeVisionExtractor.PARSER_VERSION,
+                        com.parkable.extraction.OpenRouterVisionExtractor.PARSER_VERSION,
+                        "gov-nyc-mapper-v1", "gov-chicago-mapper-v1",
                         "gov-la-mapper-v1", "gov-sf-mapper-v1", "gov-seattle-mapper-v1");
     }
 

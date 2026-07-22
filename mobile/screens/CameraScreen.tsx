@@ -1,8 +1,9 @@
 import React from 'react';
-import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import { ScanResult, VerdictResponse, scanParking } from '../services/api';
+import VerdictSummary from '../components/VerdictSummary';
 
 type FlowState =
   | { phase: 'preview' }
@@ -10,12 +11,6 @@ type FlowState =
   | { phase: 'verdict'; verdict: VerdictResponse }
   | { phase: 'retake'; message: string }
   | { phase: 'error'; message: string };
-
-const VERDICT_COLORS: Record<string, string> = {
-  PARKABLE: '#16a34a',
-  NOT_PARKABLE: '#dc2626',
-  DEPENDS: '#d97706',
-};
 
 /**
  * Native takePictureAsync returns bare base64; the web build returns a full
@@ -115,11 +110,9 @@ export default function CameraScreen() {
   }
 
   if (state.phase === 'verdict') {
-    const color = VERDICT_COLORS[state.verdict.verdict] ?? '#111827';
     return (
       <View style={styles.centered}>
-        <Text style={[styles.verdict, { color }]}>{state.verdict.verdict.replace('_', ' ')}</Text>
-        {state.verdict.reason ? <Text style={styles.note}>{state.verdict.reason}</Text> : null}
+        <VerdictSummary verdict={state.verdict} />
         <Button title="Scan another sign" onPress={() => setState({ phase: 'preview' })} />
       </View>
     );
@@ -150,7 +143,16 @@ export default function CameraScreen() {
 
   return (
     <View style={styles.cameraContainer}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+      {/* Expo's web build treats every desktop webcam as front-facing and
+          CSS-mirrors the PREVIEW only — the captured upload is NOT mirrored
+          (verified in expo-camera's WebCameraUtils: takePicture never sets
+          isImageMirror). Wrapping in our own scaleX(-1) on web cancels the
+          preview mirror so what you see is exactly what the backend gets —
+          critical for directional arrows, where a mirrored preview shows
+          the arrow pointing the wrong way. */}
+      <View style={Platform.OS === 'web' ? styles.unmirror : styles.cameraFill}>
+        <CameraView ref={cameraRef} style={styles.cameraFill} facing="back" />
+      </View>
       <View style={styles.controls}>
         <Text style={styles.note}>Fit the whole parking sign in the frame.</Text>
         <Button title="Capture" onPress={handleCapture} />
@@ -170,8 +172,12 @@ const styles = StyleSheet.create({
   cameraContainer: {
     flex: 1,
   },
-  camera: {
+  cameraFill: {
     flex: 1,
+  },
+  unmirror: {
+    flex: 1,
+    transform: [{ scaleX: -1 }],
   },
   controls: {
     padding: 16,
@@ -182,10 +188,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     textAlign: 'center',
-  },
-  verdict: {
-    fontSize: 32,
-    fontWeight: '700',
   },
   note: {
     color: '#6b7280',

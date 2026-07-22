@@ -75,6 +75,18 @@ public final class RulesEngine {
         Optional<Rule> triggering = pickMostRestrictive(activeRules);
         Verdict verdict = triggering.map(RulesEngine::verdictOf).orElse(Verdict.PARKABLE);
         Optional<RuleMatch> match = triggering.map(rule -> new RuleMatch(rule, reasonFor(rule)));
+
+        // Under an active time limit, "when could the answer change" for a
+        // driver parking NOW is the earlier of the rule's own boundary and
+        // the moment their allowance runs out - a 2h limit inside an
+        // 8:30-17:30 window means "move by now+2h", not "move by 17:30".
+        if (triggering.orElse(null) instanceof TimeLimitRule limit) {
+            Instant limitExpiry = instant.plus(limit.limit());
+            validUntil = Optional.of(validUntil.filter(boundary -> boundary.isBefore(limitExpiry))
+                    .orElse(limitExpiry));
+            trace.add("Active time limit: allowance from now expires at " + limitExpiry + ".");
+        }
+
         trace.add("Verdict: " + verdict
                 + match.map(m -> " — " + m.reason()).orElse(" — no active rules restrict parking."));
         return new VerdictResult(verdict, match, validUntil, trace);

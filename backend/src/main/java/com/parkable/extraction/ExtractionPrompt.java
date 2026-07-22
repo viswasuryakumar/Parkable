@@ -29,6 +29,11 @@ final class ExtractionPrompt {
                 - confidence: your honest 0-1 estimate; use a LOW value if the sign is \
                 blurry, cropped, or partially occluded
                 - times in 24h HH:mm; days as MON..SUN; one rule object per distinct regulation
+                - "No return within X minutes/hours" (and similar re-parking clauses) is a \
+                CONDITION of the time-limit rule it accompanies - put it in that rule's \
+                restriction.extra_details, never emit it as a separate no_parking rule. \
+                A sign saying "20 mins, no return within 40 mins" ALLOWS parking for 20 \
+                minutes.
                 - Do NOT guess fields you cannot read. Never decide whether parking is \
                 allowed - only transcribe the rules.
                 """.formatted(schemaJson, parserVersion, now);

@@ -380,6 +380,10 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
     static List<String> currentParserVersions() {
         LinkedHashSet<String> versions = new LinkedHashSet<>();
         versions.add(currentParserVersion());
+        // BOTH camera extractors are currently-valid writers: /scan stores
+        // whichever the deployment has configured (OpenRouter by default,
+        // D7), so filtering by only one would hide fresh scans from /check.
+        versions.add(com.parkable.extraction.OpenRouterVisionExtractor.PARSER_VERSION);
         versions.add(NycSignMapper.PARSER_VERSION);
         versions.add(ChicagoSignMapper.PARSER_VERSION);
         versions.add(LaSignMapper.PARSER_VERSION);

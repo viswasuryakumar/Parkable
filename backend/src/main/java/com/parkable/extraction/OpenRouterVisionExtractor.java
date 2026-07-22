@@ -38,7 +38,10 @@ import java.util.Objects;
  */
 public final class OpenRouterVisionExtractor implements VisionExtractor {
 
-    public static final String PARSER_VERSION = "openrouter-vision-extractor-v1";
+    // v2: shared prompt gained the "no return within X is a time-limit
+    // condition, not its own no_parking rule" instruction (2026-07-22, found
+    // via a real user scan yielding a confidently wrong NOT_PARKABLE).
+    public static final String PARSER_VERSION = "openrouter-vision-extractor-v2";
 
     static final String DEFAULT_MODEL = "openai/gpt-4o-mini";
 

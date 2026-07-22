@@ -166,6 +166,31 @@ class RulesEngineTest {
     }
 
     @Test
+    void activeTimeLimitCapsValidUntilAtTheDriversAllowance() {
+        // 2h limit inside an 8-18 window, evaluated at 10:00: the driver must
+        // move at 12:00 (now + 2h), well before the window boundary at 18:00.
+        // A verdict that says "valid until 18:00" would invite a ticket.
+        VerdictResult result = engine.evaluate(
+                List.of(twoHourLimit("tl-1")), WED_10AM, LA, Optional.empty());
+        assertThat(result.verdict()).isEqualTo(Verdict.PARKABLE);
+        assertThat(result.validUntil()).contains(WED_10AM.plus(Duration.ofHours(2)));
+    }
+
+    @Test
+    void activeTimeLimitStillYieldsToAnEarlierRuleBoundary() {
+        // 4h limit, but street cleaning starts at noon - the earlier boundary
+        // (noon, 2h away) wins over the 4h allowance.
+        Rule fourHours = new RuleBuilder().timeLimit(Duration.ofHours(4)).withId("tl-4h")
+                .onAnyDay().duringWindow(LocalTime.of(8, 0), LocalTime.of(18, 0)).build();
+        Rule cleaning = new RuleBuilder().noParking().withId("np-noon").onAnyDay()
+                .duringWindow(LocalTime.of(12, 0), LocalTime.of(14, 0)).build();
+        VerdictResult result = engine.evaluate(
+                List.of(fourHours, cleaning), WED_10AM, LA, Optional.empty());
+        assertThat(result.verdict()).isEqualTo(Verdict.PARKABLE);
+        assertThat(result.validUntil()).contains(Instant.parse("2026-07-15T19:00:00Z")); // 12:00 PDT
+    }
+
+    @Test
     void validUntilConsidersInactiveRulesAboutToActivate() {
         // Active until 18:00, but an inactive rule kicks in at noon: the answer
         // could change then, so validUntil must be the earlier boundary.
