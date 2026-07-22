@@ -58,6 +58,24 @@
       <artifactId>postgresql</artifactId>
       <version>42.7.4</version>
     </dependency>
+    <!-- Phase 2.5: NYC's afgb-4qw7 gov dataset only publishes NY State Plane
+         (EPSG:2263, US survey feet) coordinates, not WGS84 lat/lng. Proj4J is
+         a small, well-tested pure-Java CRS transform library - hand-rolling
+         the Transverse Mercator math ourselves risks a silently-wrong offset
+         across every NYC sign, which is much worse than a wrong dependency
+         version (Codex's NycSignMapper does the actual conversion call). -->
+    <dependency>
+      <groupId>org.locationtech.proj4j</groupId>
+      <artifactId>proj4j</artifactId>
+      <version>1.4.0</version>
+    </dependency>
+    <dependency>
+      <!-- proj4j's EPSG code registry (nad/epsg params file) ships as a
+           separate artifact from the core transform library. -->
+      <groupId>org.locationtech.proj4j</groupId>
+      <artifactId>proj4j-epsg</artifactId>
+      <version>1.4.0</version>
+    </dependency>
 
     <!-- Test -->
     <dependency>

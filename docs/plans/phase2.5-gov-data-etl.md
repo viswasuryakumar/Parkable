@@ -96,16 +96,20 @@ a real verified endpoint instead of a guess.
   keeps `/check` fast (<1s, per `CLAUDE.md` success criteria) and requires zero handler
   changes. Nightly/on-demand re-run, not a request-path dependency.
 - **G2 — `GovRuleMapper` interface** (new, small, lives beside `GovDataFeed` and `SignSource`
-  in `com.parkable.datasource`):
+  in `com.parkable.datasource`). **Revised 2026-07-21** (see G8 below) — the first version
+  Codex built (`List<Rule> map(JsonNode)`) was missing location entirely, discovered while
+  wiring C14. Corrected shape:
   ```java
   public interface GovRuleMapper {
-      List<Rule> map(JsonNode rawRecord);
+      List<MappedRule> map(JsonNode rawRecord);
       String parserVersion();   // e.g. "gov-nyc-mapper-v1" — same reproducibility contract as VisionExtractor (Phase 1 rule: every stored rule carries parser_version)
   }
+  public record MappedRule(Rule rule, double latitude, double longitude) {}
   ```
   One implementation per city. A record that can't be confidently mapped (missing
-  hours/days, ambiguous free-text) is dropped, not guessed — mirrors the "honest
-  uncertainty" philosophy from camera extraction; gov data has the same bar.
+  hours/days, ambiguous free-text, **or missing/unparseable location**) is dropped, not
+  guessed — mirrors the "honest uncertainty" philosophy from camera extraction; gov data has
+  the same bar.
 - **G3 — Buffer/ordinance-only zones (Chicago) get tagged, not dropped.** Per
   `docs/schema.md`'s existing Chicago mapping: `source='gov_data'` still applies, but a
   `confidence_score < 1.0` (schema already supports this field) marks "law exists, no
@@ -127,6 +131,38 @@ a real verified endpoint instead of a guess.
   contracts with different callers — collapsing them would force one side to fake the other
   (e.g. a `SignSource.fetch` call that secretly ignores lat/lng and returns everything). Both
   live in `com.parkable.datasource`; neither implements the other.
+- **G8 — mappers own location extraction, not C14.** Each raw record's geometry format is
+  as city-specific as its rule fields (NYC: State Plane x/y; ArcGIS cities: `geometry.paths`
+  or `geometry.x/y`), so the same class that already parses one city's attributes should
+  parse its geometry too — splitting it into C14 would duplicate per-city knowledge across
+  two packages. Hence G2's revision (`GovRuleMapper.map` returns `MappedRule`, not bare
+  `Rule`).
+- **G9 — NYC needs a real CRS transform, not hand-rolled math.** `afgb-4qw7` publishes
+  `sign_x_coord`/`sign_y_coord` in **NY State Plane Long Island, NAD83, US survey feet
+  (EPSG:2263)** — not WGS84. Verified fix: `org.locationtech.proj4j:proj4j:1.4.0` **plus**
+  `org.locationtech.proj4j:proj4j-epsg:1.4.0` (the EPSG code registry ships as a separate
+  artifact — `proj4j` alone throws `Unable to access CRS file: proj4/nad/epsg` on
+  `createFromName`), both already added to `backend/pom.xml`. Confirmed working end-to-end
+  with the real NYC record from G's live fixture:
+  ```java
+  CRSFactory factory = new CRSFactory();
+  CoordinateReferenceSystem statePlane = factory.createFromName("EPSG:2263");
+  CoordinateReferenceSystem wgs84 = factory.createFromName("EPSG:4326");
+  CoordinateTransform transform = new CoordinateTransformFactory().createTransform(statePlane, wgs84);
+  ProjCoordinate dst = new ProjCoordinate();
+  transform.transform(new ProjCoordinate(982004, 204840), dst);
+  // dst.y=40.7289, dst.x=-74.0081 — verified: exactly West Houston St between
+  // Hudson St and Greenwich St, matching that same record's on_street/from_street/to_street.
+  ```
+  `NycSignMapper` should hold one `CoordinateTransform` (built once, reused per record —
+  proj4j transforms are safe to reuse and expensive to rebuild per call).
+- **G10 — ArcGIS feeds must force `outSR=4326`.** `ArcGisGovDataFeed`'s query is missing
+  `outSR` entirely, so geometry comes back in whatever spatial reference the service
+  natively stores (SF happens to be WGS84 already — confirmed via its FeatureServer metadata
+  — but that's coincidence, not a guarantee, and Seattle's hasn't been checked). Add
+  `&outSR=4326` to the query so every ArcGIS-backed city returns WGS84 geometry
+  unconditionally, regardless of native storage SR — this is a standard ArcGIS REST query
+  parameter (server-side reprojection), not a client-side transform.
 
 ## 5. Task Partition (non-blocking; IDs continue Phase 2's C/X/P numbering on PROGRESS.md)
 
@@ -139,6 +175,7 @@ a real verified endpoint instead of a guess.
 | X7 | Codex | `com.parkable.datasource.ArcGisGovDataFeed` implementing `GovDataFeed` — generic FeatureServer transport (query URL), full pagination via `resultOffset`, same fixture-based testing approach |
 | X8 | Codex | `GovRuleMapper` interface + `NycSignMapper`, `ChicagoSignMapper`, `LaSignMapper` (2 LA datasets → one mapper or two, Codex's call) — **first step of each: live `$limit=3` query against the real dataset to confirm actual field names before writing the mapper**, then unit tests with a small fixture captured from that same query |
 | X9 | Codex | `SfSignMapper`, `SeattleSignMapper` (ArcGIS-backed; Seattle needs both `Peak_Hour_Parking_Restrictions` and `SDOT_Street_Signs` layers — Codex's call whether one mapper or two) — same live-verify-first approach |
+| X10 | Codex | **Revision of X6-X9** (found while wiring C14, see G8-G10): (1) `GovRuleMapper.map` returns `List<MappedRule>` (rule + lat/lng) instead of bare `List<Rule>` — update the interface and all 5 mappers to extract each record's own location; (2) `NycSignMapper` converts State Plane → WGS84 via proj4j (exact verified code pattern in G9, deps already in pom.xml); (3) `ArcGisGovDataFeed` adds `&outSR=4326` to its query (G10) so SF/Seattle geometry is guaranteed WGS84 |
 | P5 | Copilot | (optional/nice-to-have, not blocking) `mobile/`: surface `source` (`gov_data` vs `camera_scan`) on the verdict/nearby UI so users can see when an answer came from official city data vs a community photo scan |
 
 ## 6. Ownership (no AGENTS.md change needed)
