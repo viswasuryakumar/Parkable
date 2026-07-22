@@ -1,0 +1,7 @@
+{
+  "expo": {
+    "name": "Parkable",
+    "slug": "parkable",
+    "plugins": ["expo-asset"]
+  }
+}
