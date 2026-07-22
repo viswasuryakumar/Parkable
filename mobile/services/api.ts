@@ -47,6 +47,11 @@ export type NearbyRule = {
   description: string;
   source: string;
   parser_version: string;
+  days: string;
+  hours: string;
+  lat: number;
+  lng: number;
+  distance_m: number;
 };
 
 const DEFAULT_BASE_URL = 'https://example.invalid';

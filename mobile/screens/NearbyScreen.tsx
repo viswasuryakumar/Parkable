@@ -1,18 +1,27 @@
 import React from 'react';
-import { ActivityIndicator, Button, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, FlatList, Platform, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { NearbyRule, nearbyParking } from '../services/api';
+import { bearingLabel, formatDistance } from '../utils/geo';
 
 type ScreenState =
   | { phase: 'loading' }
-  | { phase: 'list'; rules: NearbyRule[] }
+  | { phase: 'list'; rules: NearbyRule[]; userLat: number; userLng: number }
   | { phase: 'error'; message: string };
+
+// Device reverse-geocoding is native-only (expo-location's web shim always
+// throws GeocoderError) - degrade to distance + compass bearing there, which
+// needs no external service and works everywhere.
+const REVERSE_GEOCODE_SUPPORTED = Platform.OS !== 'web';
+const MAX_STREET_LOOKUPS = 15;
 
 export default function NearbyScreen() {
   const [state, setState] = React.useState<ScreenState>({ phase: 'loading' });
+  const [streetNames, setStreetNames] = React.useState<Record<string, string>>({});
 
   const load = React.useCallback(async () => {
     setState({ phase: 'loading' });
+    setStreetNames({});
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
@@ -23,7 +32,30 @@ export default function NearbyScreen() {
         accuracy: Location.Accuracy.Balanced,
       });
       const rules = await nearbyParking(position.coords.latitude, position.coords.longitude);
-      setState({ phase: 'list', rules });
+      setState({
+        phase: 'list',
+        rules,
+        userLat: position.coords.latitude,
+        userLng: position.coords.longitude,
+      });
+
+      if (REVERSE_GEOCODE_SUPPORTED) {
+        // findWithin already orders by distance, so the first N are the
+        // ones actually worth a street name.
+        for (const rule of rules.slice(0, MAX_STREET_LOOKUPS)) {
+          Location.reverseGeocodeAsync({ latitude: rule.lat, longitude: rule.lng })
+            .then((results) => {
+              const street = results[0]?.street;
+              if (street) {
+                setStreetNames((prev) => ({ ...prev, [rule.rule_id]: street }));
+              }
+            })
+            .catch(() => {
+              // Honest degrade: the distance + bearing line already covers
+              // "where", so a failed lookup is not worth surfacing as an error.
+            });
+        }
+      }
     } catch (e) {
       setState({ phase: 'error', message: e instanceof Error ? e.message : 'Unknown error' });
     }
@@ -65,6 +97,8 @@ export default function NearbyScreen() {
     );
   }
 
+  const { userLat, userLng } = state;
+
   return (
     <View style={styles.listContainer}>
       <Text style={styles.heading}>
@@ -73,14 +107,25 @@ export default function NearbyScreen() {
       <FlatList
         data={state.rules}
         keyExtractor={(rule) => rule.rule_id}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{item.description}</Text>
-            <Text style={styles.cardMeta}>
-              {item.source === 'gov_data' ? 'Official city data' : 'Community sign scan'}
-            </Text>
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const bearing = bearingLabel(userLat, userLng, item.lat, item.lng);
+          const distance = formatDistance(item.distance_m);
+          const street = streetNames[item.rule_id];
+          return (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{item.description}</Text>
+              <Text style={styles.cardSchedule}>
+                {item.days} · {item.hours}
+              </Text>
+              <Text style={styles.cardLocation}>
+                {street ? `Near ${street}` : `${distance} ${bearing} of you`}
+              </Text>
+              <Text style={styles.cardMeta}>
+                {item.source === 'gov_data' ? 'Official city data' : 'Community sign scan'}
+              </Text>
+            </View>
+          );
+        }}
         contentContainerStyle={styles.listContent}
       />
       <Button title="Refresh" onPress={load} />
@@ -118,6 +163,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#111827',
+  },
+  cardSchedule: {
+    fontSize: 13,
+    color: '#374151',
+  },
+  cardLocation: {
+    fontSize: 13,
+    color: '#2563eb',
+    fontWeight: '500',
   },
   cardMeta: {
     fontSize: 12,

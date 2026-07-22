@@ -46,12 +46,15 @@ class PostgresRuleRepositoryTest {
         ExtractionRecord record = record();
         String json = PostgresRuleRepository.encodeRule(record, record.envelope().rules().getFirst());
 
-        StoredRule stored = PostgresRuleRepository.toStoredRule(json, record.source(), record.parserVersion());
+        StoredRule stored = PostgresRuleRepository.toStoredRule(
+                json, record.source(), record.parserVersion(), 37.7749, -122.4194);
 
         assertThat(stored.rule()).isInstanceOf(NoParkingRule.class);
         assertThat(stored.rule().metadata().ruleId()).isEqualTo("sign-rule-1");
         assertThat(stored.source()).isEqualTo("camera_scan");
         assertThat(stored.parserVersion()).isEqualTo(ClaudeVisionExtractor.PARSER_VERSION);
+        assertThat(stored.latitude()).isEqualTo(37.7749);
+        assertThat(stored.longitude()).isEqualTo(-122.4194);
         assertThat(json).contains("_parkable", "photo-1.jpg", record.extractionId());
     }
 

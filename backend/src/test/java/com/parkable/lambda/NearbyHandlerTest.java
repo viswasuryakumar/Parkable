@@ -8,19 +8,24 @@ import com.parkable.builder.RuleBuilder;
 import com.parkable.lambda.port.StoredRule;
 import org.junit.jupiter.api.Test;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.offset;
 
 class NearbyHandlerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    // 37.77, -122.42 is ~880m west of the query point (37.77, -122.41) -
+    // a known real-world-ish distance to assert distance_m against.
     private static final StoredRule STORED = new StoredRule(
             new RuleBuilder().permit("A").withId("zone-a").withDescription("Permit zone A").build(),
-            "gov_data", "sfmta-etl-v1");
+            "gov_data", "sfmta-etl-v1", 37.77, -122.42);
 
     @Test
     void listsRuleSummariesWithoutVerdicts() throws Exception {
@@ -33,10 +38,40 @@ class NearbyHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(200);
         JsonNode rules = MAPPER.readTree(response.getBody()).get("rules");
         assertThat(rules).hasSize(1);
-        assertThat(rules.get(0).get("rule_id").asText()).isEqualTo("zone-a");
-        assertThat(rules.get(0).get("source").asText()).isEqualTo("gov_data");
-        assertThat(rules.get(0).get("parser_version").asText()).isEqualTo("sfmta-etl-v1");
+        JsonNode rule = rules.get(0);
+        assertThat(rule.get("rule_id").asText()).isEqualTo("zone-a");
+        assertThat(rule.get("source").asText()).isEqualTo("gov_data");
+        assertThat(rule.get("parser_version").asText()).isEqualTo("sfmta-etl-v1");
+        assertThat(rule.get("days").asText()).isEqualTo("Every day");
+        assertThat(rule.get("hours").asText()).isEqualTo("Any time");
+        assertThat(rule.get("lat").asDouble()).isEqualTo(37.77);
+        assertThat(rule.get("lng").asDouble()).isEqualTo(-122.42);
+        assertThat(rule.get("distance_m").asDouble()).isCloseTo(880.0, offset(5.0));
         assertThat(response.getBody()).doesNotContain("verdict");
+    }
+
+    @Test
+    void formatsSpecificDaysAndTimeWindows() {
+        String days = NearbyHandler.formatDays(new com.parkable.model.SpecificDays(
+                java.util.Set.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)));
+        assertThat(days).isEqualTo("Mon, Wed, Fri");
+
+        String hours = NearbyHandler.formatHours(
+                List.of(new com.parkable.model.TimeWindow(LocalTime.of(8, 0), LocalTime.of(18, 0))));
+        assertThat(hours).isEqualTo("8:00 AM–6:00 PM");
+
+        assertThat(NearbyHandler.formatHours(List.of())).isEqualTo("Any time");
+    }
+
+    @Test
+    void formatsNthWeekdayOfMonthWithOrdinalsAndLast() {
+        String firstAndThird = NearbyHandler.formatDays(
+                new com.parkable.model.NthWeekdayOfMonth(DayOfWeek.TUESDAY, java.util.Set.of(1, 3)));
+        assertThat(firstAndThird).isEqualTo("1st & 3rd Tue");
+
+        String last = NearbyHandler.formatDays(new com.parkable.model.NthWeekdayOfMonth(
+                DayOfWeek.FRIDAY, java.util.Set.of(com.parkable.model.NthWeekdayOfMonth.LAST)));
+        assertThat(last).isEqualTo("Last Fri");
     }
 
     @Test

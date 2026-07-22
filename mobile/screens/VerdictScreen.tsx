@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { CheckResult, checkParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
@@ -14,11 +14,17 @@ type ScreenState =
   | { phase: 'result'; result: CheckResult }
   | { phase: 'error'; message: string };
 
+// expo-location's web shim always throws on reverse geocoding - the street
+// line is a native-only nicety, not something the flow depends on.
+const REVERSE_GEOCODE_SUPPORTED = Platform.OS !== 'web';
+
 export default function VerdictScreen({ onScanRequested }: VerdictScreenProps) {
   const [state, setState] = React.useState<ScreenState>({ phase: 'locating' });
+  const [street, setStreet] = React.useState<string | null>(null);
 
   const runCheck = React.useCallback(async () => {
     setState({ phase: 'locating' });
+    setStreet(null);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
@@ -34,6 +40,17 @@ export default function VerdictScreen({ onScanRequested }: VerdictScreenProps) {
       setState({ phase: 'checking' });
       const result = await checkParking(position.coords.latitude, position.coords.longitude);
       setState({ phase: 'result', result });
+
+      if (REVERSE_GEOCODE_SUPPORTED) {
+        Location.reverseGeocodeAsync({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        })
+          .then((results) => setStreet(results[0]?.street ?? null))
+          .catch(() => {
+            // Honest degrade: the verdict itself doesn't need this to work.
+          });
+      }
     } catch (e) {
       setState({ phase: 'error', message: e instanceof Error ? e.message : 'Unknown error' });
     }
@@ -68,6 +85,7 @@ export default function VerdictScreen({ onScanRequested }: VerdictScreenProps) {
   if (state.result.kind === 'no_data') {
     return (
       <View style={styles.container}>
+        {street ? <Text style={styles.location}>Near {street}</Text> : null}
         <Text style={styles.title}>No parking data here yet</Text>
         <Text style={styles.note}>{state.result.message}</Text>
         <Button title="Scan the sign" onPress={onScanRequested} />
@@ -78,6 +96,7 @@ export default function VerdictScreen({ onScanRequested }: VerdictScreenProps) {
 
   return (
     <View style={styles.container}>
+      {street ? <Text style={styles.location}>Near {street}</Text> : null}
       <VerdictSummary verdict={state.result.verdict} />
       <Button title="Check again" onPress={runCheck} />
       <Button title="Scan a sign instead" onPress={onScanRequested} />
@@ -97,6 +116,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  location: {
+    fontSize: 13,
+    color: '#2563eb',
+    fontWeight: '500',
   },
   note: {
     color: '#6b7280',

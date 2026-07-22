@@ -70,7 +70,16 @@ rule carries `source` + `parser_version`.
 
 ### GET /nearby?lat=<double>&lng=<double>[&radius=<metres, default 1000, max 2000>]
 - 200: `{"rules":[{"rule_id":string,"description":string,"source":string,
-  "parser_version":string}]}` (empty list is a valid 200)
+  "parser_version":string,"days":string,"hours":string,"lat":double,"lng":double,
+  "distance_m":number}]}` (empty list is a valid 200; ordered nearest-first per D-era
+  `ST_Distance` ordering, unchanged since Phase 2)
+  - `days`/`hours` are human-readable, never raw enum values — "Every day"/"Any time" when
+    the sign has no restriction on that axis, never a guess (2026-07-22, user-testing finding:
+    the app must show what schedule the sign actually said, or the honest absence of one).
+  - `lat`/`lng` are the STORED RULE's own point, not the query point — every writer already
+    has this (scan GPS, gov record geometry). `distance_m` is server-computed (PostGIS
+    `ST_Distance`/haversine, same source as the query's own sort order); the client derives
+    compass bearing and reverse-geocodes a street name from `lat`/`lng` itself.
 
 ### POST /scan  body: `{"photo_base64":string,"media_type":"image/jpeg|png|webp|gif",
   "lat":double,"lng":double[,"at":ISO][,"zone":ZoneId][,"side":"LEFT|RIGHT"]}`

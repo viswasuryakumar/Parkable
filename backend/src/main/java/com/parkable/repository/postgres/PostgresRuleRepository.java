@@ -57,7 +57,9 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
             """;
 
     static final String FIND_WITHIN = """
-            SELECT rule, source, parser_version
+            SELECT rule, source, parser_version,
+                   ST_Y(location::geometry) AS latitude,
+                   ST_X(location::geometry) AS longitude
             FROM rules
             WHERE parser_version = ANY (?)
               AND ST_DWithin(
@@ -222,7 +224,9 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
                         stored.add(toStoredRule(
                                 results.getString("rule"),
                                 results.getString("source"),
-                                results.getString("parser_version")));
+                                results.getString("parser_version"),
+                                results.getDouble("latitude"),
+                                results.getDouble("longitude")));
                     }
                     return List.copyOf(stored);
                 }
@@ -256,10 +260,11 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
         }
     }
 
-    static StoredRule toStoredRule(String json, String source, String parserVersion) {
+    static StoredRule toStoredRule(String json, String source, String parserVersion,
+                                   double latitude, double longitude) {
         try {
             RuleDto dto = MAPPER.readValue(json, RuleDto.class);
-            return new StoredRule(RuleFactory.from(dto), source, parserVersion);
+            return new StoredRule(RuleFactory.from(dto), source, parserVersion, latitude, longitude);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Stored rule is not valid JSON", e);
         }

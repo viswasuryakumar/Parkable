@@ -29,7 +29,9 @@ final class InMemoryRuleLookup implements RuleLookup {
                 .filter(record -> record.gpsLocation().isPresent())
                 .filter(record -> withinRadius(record, latitude, longitude, radiusMeters))
                 .flatMap(record -> RuleFactory.fromEnvelope(record.envelope()).stream()
-                        .map(rule -> new StoredRule(rule, record.source(), record.parserVersion())))
+                        .map(rule -> new StoredRule(rule, record.source(), record.parserVersion(),
+                                record.gpsLocation().orElseThrow().latitude(),
+                                record.gpsLocation().orElseThrow().longitude())))
                 .toList();
     }
 
