@@ -10,7 +10,11 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.root}>
-      {screen === 'verdict' ? <VerdictScreen /> : <CameraScreen />}
+      {screen === 'verdict' ? (
+        <VerdictScreen onScanRequested={() => setScreen('camera')} />
+      ) : (
+        <CameraScreen />
+      )}
       <View style={styles.switcher}>
         <Button
           title={screen === 'verdict' ? 'Scan a sign' : 'Back to verdict'}

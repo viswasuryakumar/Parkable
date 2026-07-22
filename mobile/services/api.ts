@@ -7,6 +7,17 @@ export type VerdictResponse = {
   trace?: string[];
 };
 
+// GET /check answers 404 with this body when no rule data exists within 25m.
+// That is a first-class outcome ("go scan the sign"), not an error.
+export type NoDataResponse = {
+  status: 'NO_DATA';
+  message: string;
+};
+
+export type CheckResult =
+  | { kind: 'verdict'; verdict: VerdictResponse }
+  | { kind: 'no_data'; message: string };
+
 export type ScanRequest = {
   photo_base64: string;
   media_type: string;
@@ -17,7 +28,12 @@ export type ScanRequest = {
   side?: 'LEFT' | 'RIGHT';
 };
 
-export type ScanResult = VerdictResponse;
+// POST /scan answers 422 when extraction could not confidently read the sign.
+// Also a first-class outcome — the honest "retake the photo" path the whole
+// architecture is built around, so it must not surface as a thrown error.
+export type ScanResult =
+  | { kind: 'verdict'; verdict: VerdictResponse }
+  | { kind: 'needs_review'; message: string };
 
 export type NeedsReviewResponse = {
   status: 'NEEDS_REVIEW';
@@ -47,25 +63,36 @@ export async function scanParking(payload: ScanRequest): Promise<ScanResult> {
   });
 
   if (response.status === 422) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error((body as NeedsReviewResponse).message ?? 'Please retake the photo and try again.');
+    const body = (await response.json().catch(() => ({}))) as Partial<NeedsReviewResponse>;
+    return {
+      kind: 'needs_review',
+      message: body.message ?? 'The sign could not be read confidently. Please retake the photo.',
+    };
   }
 
   if (!response.ok) {
     throw new Error(`Scan request failed: ${response.status}`);
   }
 
-  return response.json() as Promise<ScanResult>;
+  return { kind: 'verdict', verdict: (await response.json()) as VerdictResponse };
 }
 
-export async function checkParking(lat: number, lng: number): Promise<VerdictResponse> {
+export async function checkParking(lat: number, lng: number): Promise<CheckResult> {
   const response = await fetch(`${buildBaseUrl()}/check?lat=${lat}&lng=${lng}`);
+
+  if (response.status === 404) {
+    const body = (await response.json().catch(() => ({}))) as Partial<NoDataResponse>;
+    return {
+      kind: 'no_data',
+      message: body.message ?? 'No rule data near you yet. Scan the sign.',
+    };
+  }
 
   if (!response.ok) {
     throw new Error(`Check request failed: ${response.status}`);
   }
 
-  return response.json() as Promise<VerdictResponse>;
+  return { kind: 'verdict', verdict: (await response.json()) as VerdictResponse };
 }
 
 export async function nearbyParking(lat: number, lng: number): Promise<NearbyRule[]> {
