@@ -4,6 +4,7 @@ import com.parkable.extraction.dto.DayPatternDto;
 import com.parkable.extraction.dto.DirectionDto;
 import com.parkable.extraction.dto.ExceptionDto;
 import com.parkable.extraction.dto.ExtractionEnvelope;
+import com.parkable.extraction.dto.RestrictionDto;
 import com.parkable.extraction.dto.RuleDto;
 import com.parkable.extraction.dto.TimeWindowDto;
 import com.parkable.model.ArrowDirection;
@@ -189,5 +190,102 @@ public final class RuleFactory {
             default -> ArrowDirection.NONE;
         };
         return new DirectionalModifier(side, arrow);
+    }
+
+    /**
+     * The reverse of {@link #from(RuleDto)} — needed by non-camera ingestion
+     * (Phase 2.5 gov data ETL) that produces domain {@link Rule}s directly
+     * and must persist them through the same {@code RuleRepository.save}
+     * seam camera scans use, which stores {@link RuleDto} JSON, not domain
+     * objects. Round-trips exactly for every shape the two mapped source
+     * kinds actually produce; not exercised elsewhere in Phase 1/2.
+     */
+    public static RuleDto toDto(Rule rule) {
+        RuleMetadata metadata = rule.metadata();
+        String type = switch (rule) {
+            case NoParkingRule ignored -> "no_parking";
+            case TimeLimitRule ignored -> "time_limit";
+            case PermitRule ignored -> "permit_required";
+        };
+        RestrictionDto restriction = switch (rule) {
+            case NoParkingRule ignored -> null;
+            case TimeLimitRule timeLimitRule ->
+                    new RestrictionDto((int) timeLimitRule.limit().toMinutes(), null, null, null, null);
+            case PermitRule permitRule -> new RestrictionDto(null, permitRule.permitZone(), null, null, null);
+        };
+        return new RuleDto(
+                metadata.ruleId(),
+                null,
+                type,
+                metadata.description(),
+                null,
+                restriction,
+                timeWindowDtosOf(metadata.timeWindows()),
+                dayPatternDtoOf(metadata.dayPattern(), metadata.dateRange()),
+                exceptionDtosOf(metadata.holidayPolicy()),
+                directionDtoOf(metadata.direction()),
+                "active");
+    }
+
+    private static List<TimeWindowDto> timeWindowDtosOf(List<TimeWindow> windows) {
+        return windows.stream()
+                .map(w -> new TimeWindowDto(w.start().toString(), w.end().toString(), w.crossesMidnight(), false))
+                .toList();
+    }
+
+    private static DayPatternDto dayPatternDtoOf(DayPattern pattern, Optional<DateRange> dateRange) {
+        if (dateRange.isPresent()) {
+            DateRange range = dateRange.get();
+            return new DayPatternDto("date_range", null, null, null,
+                    range.effectiveDate().toString(), range.sunsetDate().map(LocalDate::toString).orElse(null), false);
+        }
+        return switch (pattern) {
+            case SpecificDays specificDays -> specificDays.days().size() == 7
+                    ? new DayPatternDto("any_day", null, null, null, null, null, true)
+                    : new DayPatternDto("specific_days", dayNamesOf(specificDays.days()), null, null, null, null, null);
+            case NthWeekdayOfMonth nth -> new DayPatternDto("nth_weekday_of_month", null,
+                    reverseDayName(nth.weekday()), List.copyOf(nth.occurrences()), null, null, null);
+        };
+    }
+
+    private static List<String> dayNamesOf(Set<DayOfWeek> days) {
+        return DAY_NAMES.entrySet().stream()
+                .filter(entry -> days.contains(entry.getValue()))
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
+    private static String reverseDayName(DayOfWeek day) {
+        return DAY_NAMES.entrySet().stream()
+                .filter(entry -> entry.getValue() == day)
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static List<ExceptionDto> exceptionDtosOf(HolidayPolicy policy) {
+        return policy.suspendedOnHolidays()
+                ? List.of(new ExceptionDto("holiday_suspension", null, null, null, null))
+                : List.of();
+    }
+
+    private static DirectionDto directionDtoOf(DirectionalModifier direction) {
+        if (direction.side() == Side.NOT_SPECIFIED && direction.arrow() == ArrowDirection.NONE) {
+            return null;
+        }
+        String side = switch (direction.side()) {
+            case LEFT -> "left";
+            case RIGHT -> "right";
+            case BOTH -> "both";
+            case NOT_SPECIFIED -> null;
+        };
+        String arrow = switch (direction.arrow()) {
+            case NORTH -> "north";
+            case SOUTH -> "south";
+            case EAST -> "east";
+            case WEST -> "west";
+            case NONE -> null;
+        };
+        return new DirectionDto(side, null, null, arrow);
     }
 }

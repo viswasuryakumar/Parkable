@@ -189,6 +189,99 @@ class RuleFactoryTest {
     }
 
     @Test
+    void toDtoRoundTripsNoParkingRuleWithSpecificDaysAndTimeWindow() {
+        Rule original = RuleFactory.from(ruleDto("no_parking", null));
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped).isEqualTo(original);
+    }
+
+    @Test
+    void toDtoRoundTripsTimeLimitRule() {
+        Rule original = RuleFactory.from(ruleDto("time_limit", new RestrictionDto(120, null, null, null, null)));
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped).isEqualTo(original);
+    }
+
+    @Test
+    void toDtoRoundTripsPermitRule() {
+        Rule original = RuleFactory.from(ruleDto("permit_required", new RestrictionDto(null, "residential", null, null, null)));
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped).isEqualTo(original);
+    }
+
+    @Test
+    void toDtoRoundTripsAnyDayPattern() {
+        RuleDto dto = new RuleDto("r1", null, "no_parking", "d", null, null, null,
+                new DayPatternDto("any_day", null, null, null, null, null, null), null, null, null);
+        Rule original = RuleFactory.from(dto);
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped).isEqualTo(original);
+    }
+
+    @Test
+    void toDtoRoundTripsDateRangeBounds() {
+        RuleDto dto = new RuleDto("r1", null, "no_parking", "d", null, null, null,
+                new DayPatternDto("date_range", null, null, null, "2026-06-01", "2026-08-31", null),
+                null, null, null);
+        Rule original = RuleFactory.from(dto);
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped).isEqualTo(original);
+    }
+
+    @Test
+    void toDtoRoundTripsNthWeekdayPattern() {
+        RuleDto dto = new RuleDto("r1", null, "street_cleaning", "d", null, null, null,
+                new DayPatternDto("nth_weekday_of_month", null, "TUE", List.of(1, 3), null, null, null),
+                null, null, null);
+        Rule original = RuleFactory.from(dto);
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped.metadata().dayPattern().matches(LocalDate.of(2026, 7, 7))).isTrue();
+        assertThat(roundTripped.metadata().dayPattern().matches(LocalDate.of(2026, 7, 14))).isFalse();
+        assertThat(roundTripped.metadata().dayPattern().matches(LocalDate.of(2026, 7, 21))).isTrue();
+    }
+
+    @Test
+    void toDtoRoundTripsHolidaySuspension() {
+        RuleDto suspended = new RuleDto("r1", null, "no_parking", "d", null, null, null, WEEKDAYS,
+                List.of(new ExceptionDto("holiday_suspension", "Except holidays", null, null, null)), null, null);
+        Rule original = RuleFactory.from(suspended);
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped.metadata().holidayPolicy().suspendedOnHolidays()).isTrue();
+    }
+
+    @Test
+    void toDtoRoundTripsDirection() {
+        RuleDto sided = new RuleDto("r1", null, "no_parking", "d", null, null, null, WEEKDAYS, null,
+                new DirectionDto("left", null, null, "north"), null);
+        Rule original = RuleFactory.from(sided);
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped.metadata().direction()).isEqualTo(original.metadata().direction());
+    }
+
+    @Test
+    void toDtoOmitsDirectionWhenUnspecified() {
+        Rule original = RuleFactory.from(ruleDto("no_parking", null));
+
+        assertThat(RuleFactory.toDto(original).direction()).isNull();
+    }
+
+    @Test
     void fromEnvelopeSkipsDeprecatedAndSupersededRules() {
         RuleDto active = ruleDto("no_parking", null);
         RuleDto deprecated = new RuleDto("r-old", null, "no_parking", "d", null, null, null,
