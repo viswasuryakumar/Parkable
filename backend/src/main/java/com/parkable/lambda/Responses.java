@@ -19,7 +19,13 @@ import java.util.Map;
 final class Responses {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final Map<String, String> JSON_HEADERS = Map.of("Content-Type", "application/json");
+    // Access-Control-Allow-Origin lets the Expo WEB build (a browser page on
+    // a different origin) call this API; native apps ignore it. Preflight
+    // OPTIONS is handled by API Gateway (SAM Cors config), but the actual
+    // responses must carry the header themselves.
+    private static final Map<String, String> JSON_HEADERS = Map.of(
+            "Content-Type", "application/json",
+            "Access-Control-Allow-Origin", "*");
 
     private Responses() {}
 

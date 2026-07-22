@@ -3,6 +3,16 @@ Transform: AWS::Serverless-2016-10-31
 
 Description: Parkable API Gateway + Lambda stack for /scan, /check, and /nearby
 
+Globals:
+  Api:
+    # Answers the browser's preflight OPTIONS for the Expo web build; the
+    # Lambda responses carry their own Access-Control-Allow-Origin header
+    # (Responses.java) for the actual GET/POST answers.
+    Cors:
+      AllowOrigin: "'*'"
+      AllowHeaders: "'Content-Type'"
+      AllowMethods: "'GET,POST,OPTIONS'"
+
 Parameters:
   DatabaseUrlParameter:
     Type: AWS::SSM::Parameter::Value<String>
