@@ -68,7 +68,7 @@ public final class ArcGisGovDataFeed implements GovDataFeed {
     private Page fetchPage(int offset) {
         String separator = queryEndpoint.getQuery() == null || queryEndpoint.getQuery().isEmpty() ? "?" : "&";
         URI uri = URI.create(queryEndpoint + separator
-                + "where=1%3D1&outFields=*&returnGeometry=true&f=json"
+                + "where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=json"
                 + "&resultOffset=" + offset + "&resultRecordCount=" + pageSize);
         try {
             HttpResponse<String> response = client.send(HttpRequest.newBuilder(uri)

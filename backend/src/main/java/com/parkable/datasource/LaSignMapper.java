@@ -1,8 +1,6 @@
 package com.parkable.datasource;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.parkable.model.Rule;
-
 import java.util.List;
 
 /**
@@ -11,13 +9,14 @@ import java.util.List;
  * Neither can be made into an honest deterministic rule without guessing.
  */
 public final class LaSignMapper implements GovRuleMapper {
+    public static final String PARSER_VERSION = "gov-la-mapper-v1";
     @Override
-    public List<Rule> map(JsonNode rawRecord) {
+    public List<MappedRule> map(JsonNode rawRecord) {
         return List.of();
     }
 
     @Override
     public String parserVersion() {
-        return "gov-la-mapper-v1";
+        return PARSER_VERSION;
     }
 }

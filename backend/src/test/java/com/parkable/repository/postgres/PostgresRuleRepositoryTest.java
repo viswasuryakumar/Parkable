@@ -60,7 +60,10 @@ class PostgresRuleRepositoryTest {
         assertThat(PostgresRuleRepository.UPSERT_RULE)
                 .contains("ST_MakePoint(?, ?)", "ON CONFLICT (id)", "?::jsonb");
         assertThat(PostgresRuleRepository.FIND_WITHIN)
-                .contains("parser_version = ?", "ST_DWithin", "ST_Distance", "ST_MakePoint(?, ?)");
+                .contains("parser_version = ANY (?)", "ST_DWithin", "ST_Distance", "ST_MakePoint(?, ?)");
+        assertThat(PostgresRuleRepository.currentParserVersions())
+                .contains(ClaudeVisionExtractor.PARSER_VERSION, "gov-nyc-mapper-v1", "gov-chicago-mapper-v1",
+                        "gov-la-mapper-v1", "gov-sf-mapper-v1", "gov-seattle-mapper-v1");
     }
 
     @Test

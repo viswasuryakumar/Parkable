@@ -30,13 +30,17 @@ class GovRuleMapperTest {
     @Test
     void nycMapperNormalizesACompleteExplicitRestrictionWithoutGuessing() throws IOException {
         JsonNode record = json("""
-                {"order_number":"S-42","sign_description":"NO PARKING MON-FRI 8AM-6PM"}
+                {"order_number":"S-42","sign_description":"NO PARKING MON-FRI 8AM-6PM",
+                "sign_x_coord":"982004","sign_y_coord":"204840"}
                 """);
 
-        NoParkingRule rule = (NoParkingRule) new NycSignMapper().map(record).getFirst();
+        MappedRule mapped = new NycSignMapper().map(record).getFirst();
+        NoParkingRule rule = (NoParkingRule) mapped.rule();
         assertThat(rule.metadata().ruleId()).isEqualTo("nyc:afgb-4qw7:S-42");
         assertThat(rule.metadata().dayPattern().matches(java.time.LocalDate.of(2026, 7, 20))).isTrue();
         assertThat(rule.metadata().timeWindows()).hasSize(1);
+        assertThat(mapped.latitude()).isCloseTo(40.7289, org.assertj.core.data.Offset.offset(0.0002));
+        assertThat(mapped.longitude()).isCloseTo(-74.0081, org.assertj.core.data.Offset.offset(0.0002));
     }
 
     @Test
@@ -70,10 +74,13 @@ class GovRuleMapperTest {
                 "geometry":{"paths":[[[-122.404388,37.801553],[-122.403661,37.801646]]]}}
                 """);
 
-        TimeLimitRule rule = (TimeLimitRule) new SfSignMapper().map(feature).getFirst();
+        MappedRule mapped = new SfSignMapper().map(feature).getFirst();
+        TimeLimitRule rule = (TimeLimitRule) mapped.rule();
         assertThat(rule.metadata().ruleId()).isEqualTo("sf:parkingregulations:1");
         assertThat(rule.limit()).isEqualTo(Duration.ofHours(2));
         assertThat(rule.metadata().dayPattern().matches(java.time.LocalDate.of(2026, 7, 25))).isTrue();
+        assertThat(mapped.latitude()).isEqualTo(37.801553);
+        assertThat(mapped.longitude()).isEqualTo(-122.404388);
         assertThat(new SfSignMapper().parserVersion()).isEqualTo("gov-sf-mapper-v1");
     }
 
@@ -89,9 +96,12 @@ class GovRuleMapperTest {
                 "CURRENT_STATUS":"INSVC","SEGKEY":10179}}
                 """);
 
-        NoParkingRule rule = (NoParkingRule) new SeattleSignMapper().map(sign).getFirst();
+        MappedRule mapped = new SeattleSignMapper().map(sign).getFirst();
+        NoParkingRule rule = (NoParkingRule) mapped.rule();
         assertThat(rule.metadata().ruleId()).isEqualTo("seattle:street-signs:SGN-204962");
         assertThat(rule.metadata().timeWindows()).isEmpty();
+        assertThat(mapped.latitude()).isEqualTo(47.684466);
+        assertThat(mapped.longitude()).isEqualTo(-122.315905);
         assertThat(new SeattleSignMapper().map(peakHour)).isEmpty();
         assertThat(new SeattleSignMapper().parserVersion()).isEqualTo("gov-seattle-mapper-v1");
     }

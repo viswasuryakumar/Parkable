@@ -61,7 +61,7 @@ class GovDataFeedTest {
                 .containsExactly(1, 2, 3);
         assertThat(features.getFirst().path("geometry").path("x").asInt()).isEqualTo(1);
         assertThat(queries).allSatisfy(query -> assertThat(query)
-                .contains("custom=value", "where=1=1", "outFields=*", "returnGeometry=true", "f=json"));
+                .contains("custom=value", "where=1=1", "outFields=*", "returnGeometry=true", "outSR=4326", "f=json"));
         assertThat(queries).anySatisfy(query -> assertThat(query).contains("resultOffset=0", "resultRecordCount=2"));
         assertThat(queries).anySatisfy(query -> assertThat(query).contains("resultOffset=2", "resultRecordCount=2"));
     }

@@ -7,6 +7,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.parkable.extraction.ClaudeVisionExtractor;
 import com.parkable.extraction.dto.ExtractionEnvelope;
 import com.parkable.extraction.dto.RuleDto;
+import com.parkable.datasource.ChicagoSignMapper;
+import com.parkable.datasource.LaSignMapper;
+import com.parkable.datasource.NycSignMapper;
+import com.parkable.datasource.SeattleSignMapper;
+import com.parkable.datasource.SfSignMapper;
 import com.parkable.factory.RuleFactory;
 import com.parkable.lambda.port.RuleLookup;
 import com.parkable.lambda.port.StoredRule;
@@ -16,11 +21,13 @@ import com.parkable.repository.RuleRepository;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +57,7 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
     static final String FIND_WITHIN = """
             SELECT rule, source, parser_version
             FROM rules
-            WHERE parser_version = ?
+            WHERE parser_version = ANY (?)
               AND ST_DWithin(
                   location,
                   ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography,
@@ -158,22 +165,27 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
 
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement(FIND_WITHIN)) {
-            statement.setString(1, currentParserVersion());
-            // Every PostGIS point binding is longitude then latitude.
-            statement.setDouble(2, longitude);
-            statement.setDouble(3, latitude);
-            statement.setDouble(4, radiusMeters);
-            statement.setDouble(5, longitude);
-            statement.setDouble(6, latitude);
-            try (ResultSet results = statement.executeQuery()) {
-                List<StoredRule> stored = new ArrayList<>();
-                while (results.next()) {
-                    stored.add(toStoredRule(
-                            results.getString("rule"),
-                            results.getString("source"),
-                            results.getString("parser_version")));
+            Array versions = connection.createArrayOf("text", currentParserVersions().toArray(String[]::new));
+            try {
+                statement.setArray(1, versions);
+                // Every PostGIS point binding is longitude then latitude.
+                statement.setDouble(2, longitude);
+                statement.setDouble(3, latitude);
+                statement.setDouble(4, radiusMeters);
+                statement.setDouble(5, longitude);
+                statement.setDouble(6, latitude);
+                try (ResultSet results = statement.executeQuery()) {
+                    List<StoredRule> stored = new ArrayList<>();
+                    while (results.next()) {
+                        stored.add(toStoredRule(
+                                results.getString("rule"),
+                                results.getString("source"),
+                                results.getString("parser_version")));
+                    }
+                    return List.copyOf(stored);
                 }
-                return List.copyOf(stored);
+            } finally {
+                versions.free();
             }
         } catch (SQLException e) {
             throw storageFailure("find nearby rules", e);
@@ -308,6 +320,17 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
     private static String currentParserVersion() {
         String configured = System.getenv("PARKABLE_PARSER_VERSION");
         return configured == null || configured.isBlank() ? ClaudeVisionExtractor.PARSER_VERSION : configured;
+    }
+
+    static List<String> currentParserVersions() {
+        LinkedHashSet<String> versions = new LinkedHashSet<>();
+        versions.add(currentParserVersion());
+        versions.add(NycSignMapper.PARSER_VERSION);
+        versions.add(ChicagoSignMapper.PARSER_VERSION);
+        versions.add(LaSignMapper.PARSER_VERSION);
+        versions.add(SfSignMapper.PARSER_VERSION);
+        versions.add(SeattleSignMapper.PARSER_VERSION);
+        return List.copyOf(versions);
     }
 
     private static void validateCoordinates(double latitude, double longitude) {

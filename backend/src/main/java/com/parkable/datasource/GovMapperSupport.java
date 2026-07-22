@@ -75,4 +75,32 @@ final class GovMapperSupport {
         }
         return Optional.empty();
     }
+
+    static Optional<Coordinates> arcGisLineStart(JsonNode record) {
+        JsonNode coordinate = record.path("geometry").path("paths").path(0).path(0);
+        if (!coordinate.isArray() || coordinate.size() < 2 || !coordinate.get(0).isNumber() || !coordinate.get(1).isNumber()) {
+            return Optional.empty();
+        }
+        return coordinates(coordinate.get(1).asDouble(), coordinate.get(0).asDouble());
+    }
+
+    static Optional<Coordinates> fields(JsonNode record, String latitudeField, String longitudeField) {
+        JsonNode attributes = attributes(record);
+        JsonNode latitude = attributes.path(latitudeField);
+        JsonNode longitude = attributes.path(longitudeField);
+        if (!latitude.isNumber() || !longitude.isNumber()) {
+            return Optional.empty();
+        }
+        return coordinates(latitude.asDouble(), longitude.asDouble());
+    }
+
+    static Optional<Coordinates> coordinates(double latitude, double longitude) {
+        if (!Double.isFinite(latitude) || !Double.isFinite(longitude)
+                || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+            return Optional.empty();
+        }
+        return Optional.of(new Coordinates(latitude, longitude));
+    }
+
+    record Coordinates(double latitude, double longitude) {}
 }

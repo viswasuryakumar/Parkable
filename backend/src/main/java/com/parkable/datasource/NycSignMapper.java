@@ -2,7 +2,11 @@ package com.parkable.datasource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.parkable.model.NoParkingRule;
-import com.parkable.model.Rule;
+import org.locationtech.proj4j.CRSFactory;
+import org.locationtech.proj4j.CoordinateReferenceSystem;
+import org.locationtech.proj4j.CoordinateTransform;
+import org.locationtech.proj4j.CoordinateTransformFactory;
+import org.locationtech.proj4j.ProjCoordinate;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
@@ -15,10 +19,12 @@ import java.util.regex.Pattern;
 
 /** Maps only NYC sign text that explicitly states both its active days and hours. */
 public final class NycSignMapper implements GovRuleMapper {
+    public static final String PARSER_VERSION = "gov-nyc-mapper-v1";
     private static final Pattern HOURS = Pattern.compile("(?i)(\\d{1,2})(?::(\\d{2}))?\\s*(AM|PM)\\s*(?:-|TO)\\s*(\\d{1,2})(?::(\\d{2}))?\\s*(AM|PM)");
+    private static final CoordinateTransform STATE_PLANE_TO_WGS84 = statePlaneToWgs84();
 
     @Override
-    public List<Rule> map(JsonNode rawRecord) {
+    public List<MappedRule> map(JsonNode rawRecord) {
         Optional<String> description = GovMapperSupport.text(rawRecord, "sign_description");
         Optional<String> id = GovMapperSupport.text(rawRecord, "order_number");
         if (description.isEmpty() || id.isEmpty() || !description.get().toUpperCase().contains("NO PARK")) {
@@ -26,16 +32,17 @@ public final class NycSignMapper implements GovRuleMapper {
         }
         Optional<Set<DayOfWeek>> days = days(description.get());
         Optional<com.parkable.model.TimeWindow> window = window(description.get());
-        if (days.isEmpty() || window.isEmpty()) {
+        Optional<GovMapperSupport.Coordinates> location = location(rawRecord);
+        if (days.isEmpty() || window.isEmpty() || location.isEmpty()) {
             return List.of();
         }
-        return List.of(new NoParkingRule(GovMapperSupport.metadata("nyc:afgb-4qw7:" + id.get(), description.get(),
-                days.get(), List.of(window.get()))));
+        return List.of(new MappedRule(new NoParkingRule(GovMapperSupport.metadata("nyc:afgb-4qw7:" + id.get(),
+                description.get(), days.get(), List.of(window.get()))), location.get().latitude(), location.get().longitude()));
     }
 
     @Override
     public String parserVersion() {
-        return "gov-nyc-mapper-v1";
+        return PARSER_VERSION;
     }
 
     private static Optional<Set<DayOfWeek>> days(String text) {
@@ -76,5 +83,24 @@ public final class NycSignMapper implements GovRuleMapper {
             hour += 12;
         }
         return LocalTime.of(hour, minute);
+    }
+
+    private static Optional<GovMapperSupport.Coordinates> location(JsonNode record) {
+        try {
+            double x = Double.parseDouble(GovMapperSupport.text(record, "sign_x_coord").orElseThrow());
+            double y = Double.parseDouble(GovMapperSupport.text(record, "sign_y_coord").orElseThrow());
+            ProjCoordinate destination = new ProjCoordinate();
+            STATE_PLANE_TO_WGS84.transform(new ProjCoordinate(x, y), destination);
+            return GovMapperSupport.coordinates(destination.y, destination.x);
+        } catch (NumberFormatException | java.util.NoSuchElementException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static CoordinateTransform statePlaneToWgs84() {
+        CRSFactory factory = new CRSFactory();
+        CoordinateReferenceSystem statePlane = factory.createFromName("EPSG:2263");
+        CoordinateReferenceSystem wgs84 = factory.createFromName("EPSG:4326");
+        return new CoordinateTransformFactory().createTransform(statePlane, wgs84);
     }
 }
