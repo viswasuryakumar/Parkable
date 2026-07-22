@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Cross-field validation the JSON Schema can't express (or doesn't assert by
@@ -25,6 +26,14 @@ import java.util.Set;
  */
 public final class SemanticRuleValidator {
 
+    // Matches "8AM", "8:30 PM", etc. A live scan produced description="2 Hour
+    // Parking" (no hours) with raw_text="...8AM - 5PM" and an EMPTY
+    // time_windows - which per schema.md means "enforced at all hours",
+    // silently contradicting the sign. Empty time_windows is a much stronger
+    // claim than "I didn't transcribe the hours", so it needs a positive
+    // signal (no clock time anywhere) before it's trusted.
+    private static final Pattern CLOCK_TIME = Pattern.compile("(?i)\\b\\d{1,2}(:\\d{2})?\\s*(AM|PM)\\b");
+
     public ValidationResult validate(ExtractionEnvelope envelope) {
         List<String> errors = new ArrayList<>();
 
@@ -33,10 +42,37 @@ public final class SemanticRuleValidator {
         if (envelope.rules() != null) {
             for (RuleDto rule : envelope.rules()) {
                 checkRule(rule, errors);
+                // envelope.rawText() covers the WHOLE sign, so attributing it
+                // to one specific rule only makes sense when there is
+                // exactly one rule - with multiple regulations on a sign, an
+                // hour mentioned for rule A must not false-flag rule B's
+                // legitimately-empty time_windows.
+                if (envelope.rules().size() == 1) {
+                    checkHoursNotDropped(rule, envelope.rawText(), errors);
+                }
             }
         }
 
         return errors.isEmpty() ? ValidationResult.ok() : ValidationResult.failure(errors);
+    }
+
+    private static void checkHoursNotDropped(RuleDto rule, String rawText, List<String> errors) {
+        boolean hasWindows = rule.timeWindows() != null && !rule.timeWindows().isEmpty();
+        if (hasWindows) {
+            return;
+        }
+        String id = rule.ruleId() == null ? "<missing id>" : rule.ruleId();
+        boolean mentionsClockTime = CLOCK_TIME.matcher(nullToEmpty(rule.description())).find()
+                || CLOCK_TIME.matcher(nullToEmpty(rule.originalDescription())).find()
+                || CLOCK_TIME.matcher(nullToEmpty(rawText)).find();
+        if (mentionsClockTime) {
+            errors.add("Rule " + id + ": sign text names specific hours but time_windows is empty "
+                    + "(empty time_windows means enforced at ALL hours - re-extract the actual hours)");
+        }
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private static void checkTimestamp(String timestamp, List<String> errors) {

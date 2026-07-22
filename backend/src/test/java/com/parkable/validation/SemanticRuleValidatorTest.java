@@ -116,6 +116,69 @@ class SemanticRuleValidatorTest {
     }
 
     @Test
+    void emptyTimeWindowsWithClockTimeInDescriptionIsRejected() {
+        RuleDto rule = new RuleDto("r1", null, "time_limit", "2 Hour Parking 8AM to 5PM", null,
+                new RestrictionDto(120, null, null, null, null), null, ANY_DAY, null, null, null);
+        ExtractionEnvelope envelope = new ExtractionEnvelope("e1", "camera_scan", null, null,
+                "test-v1", "2026-07-14T18:04:00Z", null, 0.9, null, null, null, List.of(rule));
+
+        ValidationResult result = validator.validate(envelope);
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.errors()).anySatisfy(e -> assertThat(e).contains("time_windows is empty"));
+    }
+
+    @Test
+    void emptyTimeWindowsWithClockTimeOnlyInRawTextIsRejected() {
+        // The real bug this guards: description/type/duration all correctly
+        // extracted, hours only appear in the sign's raw transcription, and
+        // time_windows was silently left empty.
+        RuleDto rule = new RuleDto("r1", null, "time_limit", "2 Hour Parking", null,
+                new RestrictionDto(120, null, null, null, null), null, ANY_DAY, null, null, null);
+        ExtractionEnvelope envelope = new ExtractionEnvelope("e1", "camera_scan", null, null,
+                "test-v1", "2026-07-14T18:04:00Z", null, 0.9, null, null,
+                "2 HOUR PARKING MONDAY THRU FRIDAY 8AM - 5PM", List.of(rule));
+
+        ValidationResult result = validator.validate(envelope);
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.errors()).anySatisfy(e -> assertThat(e).contains("time_windows is empty"));
+    }
+
+    @Test
+    void emptyTimeWindowsWithNoClockTimeAnywhereIsALegitimateAnyTimeSign() {
+        RuleDto rule = new RuleDto("r1", null, "no_parking", "No Parking Anytime", null,
+                null, null, ANY_DAY, null, null, null);
+        ExtractionEnvelope envelope = new ExtractionEnvelope("e1", "camera_scan", null, null,
+                "test-v1", "2026-07-14T18:04:00Z", null, 0.9, null, null,
+                "NO PARKING ANYTIME", List.of(rule));
+
+        ValidationResult result = validator.validate(envelope);
+
+        assertThat(result.valid()).as("errors: " + result.errors()).isTrue();
+    }
+
+    @Test
+    void multiRuleSignsDoNotFalsePositiveAcrossRules() {
+        // Rule 1 has real hours; rule 2 is legitimately any-time. The
+        // envelope-level rawText check must not attribute rule 1's hours to
+        // rule 2 just because they share one sign's transcription.
+        RuleDto withHours = new RuleDto("r1", null, "time_limit", "2 Hour Parking 8AM-5PM", null,
+                new RestrictionDto(120, null, null, null, null),
+                List.of(new TimeWindowDto("08:00", "17:00", false, false)), ANY_DAY, null, null, null);
+        RuleDto anyTime = new RuleDto("r2", null, "no_parking", "No Parking Anytime Sundays", null,
+                null, null, new DayPatternDto("specific_days", List.of("SUN"), null, null, null, null, null),
+                null, null, null);
+        ExtractionEnvelope envelope = new ExtractionEnvelope("e1", "camera_scan", null, null,
+                "test-v1", "2026-07-14T18:04:00Z", null, 0.9, null, null,
+                "2 HOUR PARKING 8AM-5PM MON-FRI. NO PARKING ANYTIME SUNDAYS.", List.of(withHours, anyTime));
+
+        ValidationResult result = validator.validate(envelope);
+
+        assertThat(result.valid()).as("errors: " + result.errors()).isTrue();
+    }
+
+    @Test
     void allErrorsAccumulateInsteadOfStoppingAtFirst() {
         ValidationResult result = validator.validate(envelopeWith(
                 rule("r1", new TimeWindowDto("08:00", "08:00", null, false), ANY_DAY),

@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Button, FlatList, Platform, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { NearbyRule, nearbyParking } from '../services/api';
-import { bearingLabel, formatDistance } from '../utils/geo';
+import { describeLocation } from '../utils/geo';
 
 type ScreenState =
   | { phase: 'loading' }
@@ -108,18 +108,17 @@ export default function NearbyScreen() {
         data={state.rules}
         keyExtractor={(rule) => rule.rule_id}
         renderItem={({ item }) => {
-          const bearing = bearingLabel(userLat, userLng, item.lat, item.lng);
-          const distance = formatDistance(item.distance_m);
           const street = streetNames[item.rule_id];
+          const location = street
+            ? `Near ${street}`
+            : describeLocation(userLat, userLng, item.lat, item.lng, item.distance_m);
           return (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{item.description}</Text>
               <Text style={styles.cardSchedule}>
                 {item.days} · {item.hours}
               </Text>
-              <Text style={styles.cardLocation}>
-                {street ? `Near ${street}` : `${distance} ${bearing} of you`}
-              </Text>
+              <Text style={styles.cardLocation}>{location}</Text>
               <Text style={styles.cardMeta}>
                 {item.source === 'gov_data' ? 'Official city data' : 'Community sign scan'}
               </Text>

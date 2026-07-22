@@ -29,6 +29,13 @@ final class ExtractionPrompt {
                 - confidence: your honest 0-1 estimate; use a LOW value if the sign is \
                 blurry, cropped, or partially occluded
                 - times in 24h HH:mm; days as MON..SUN; one rule object per distinct regulation
+                - If the sign states ANY hours of enforcement (e.g. "8AM-5PM", "8:30 TO 5:30"), \
+                you MUST populate that same rule's time_windows with a matching start_time/ \
+                end_time - never leave time_windows empty while the hours appear only in \
+                raw_text or description. Empty time_windows means "enforced at ALL hours, \
+                every hour of the day" - using it for a sign that actually names specific \
+                hours is exactly the kind of confidently-wrong answer this system must never \
+                give. Leave time_windows empty ONLY when the sign truly names no hours at all.
                 - "No return within X minutes/hours" (and similar re-parking clauses) is a \
                 CONDITION of the time-limit rule it accompanies - put it in that rule's \
                 restriction.extra_details, never emit it as a separate no_parking rule. \

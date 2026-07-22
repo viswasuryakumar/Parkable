@@ -2,13 +2,13 @@ import React from 'react';
 import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
-import { ScanResult, VerdictResponse, scanParking } from '../services/api';
+import { ScanResult, VerdictResponse, checkParking, scanParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
 
 type FlowState =
   | { phase: 'preview' }
   | { phase: 'uploading' }
-  | { phase: 'verdict'; verdict: VerdictResponse }
+  | { phase: 'verdict'; verdict: VerdictResponse; lat: number; lng: number }
   | { phase: 'retake'; message: string }
   | { phase: 'error'; message: string };
 
@@ -29,6 +29,8 @@ function normalizePhoto(raw: string): { base64: string; mediaType: string } {
 export default function CameraScreen() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [state, setState] = React.useState<FlowState>({ phase: 'preview' });
+  const [timerStarted, setTimerStarted] = React.useState(false);
+  const [startingTimer, setStartingTimer] = React.useState(false);
   const cameraRef = React.useRef<CameraView>(null);
 
   React.useEffect(() => {
@@ -63,22 +65,44 @@ export default function CameraScreen() {
         accuracy: Location.Accuracy.Balanced,
       });
       const { base64, mediaType } = normalizePhoto(photo.base64);
+      const { latitude, longitude } = position.coords;
       const result: ScanResult = await scanParking({
         photo_base64: base64,
         media_type: mediaType,
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
+        lat: latitude,
+        lng: longitude,
       });
       if (result.kind === 'needs_review') {
         setState({ phase: 'retake', message: result.message });
       } else {
-        setState({ phase: 'verdict', verdict: result.verdict });
+        setTimerStarted(false);
+        setState({ phase: 'verdict', verdict: result.verdict, lat: latitude, lng: longitude });
       }
     } catch (error) {
       setState({
         phase: 'error',
         message: error instanceof Error ? error.message : 'Upload failed.',
       });
+    }
+  }
+
+  async function startTimer() {
+    if (state.phase !== 'verdict') {
+      return;
+    }
+    setStartingTimer(true);
+    try {
+      // Re-check at THIS instant (when you actually park) rather than
+      // trusting the scan-time verdict - walking back to the car takes time.
+      const result = await checkParking(state.lat, state.lng);
+      if (result.kind === 'verdict') {
+        setState({ phase: 'verdict', verdict: result.verdict, lat: state.lat, lng: state.lng });
+        setTimerStarted(true);
+      }
+    } catch {
+      // Leave the prior verdict on screen; the button just stays available to retry.
+    } finally {
+      setStartingTimer(false);
     }
   }
 
@@ -112,7 +136,12 @@ export default function CameraScreen() {
   if (state.phase === 'verdict') {
     return (
       <View style={styles.centered}>
-        <VerdictSummary verdict={state.verdict} />
+        <VerdictSummary
+          verdict={state.verdict}
+          onStartTimer={startTimer}
+          timerStarted={timerStarted}
+          startingTimer={startingTimer}
+        />
         <Button title="Scan another sign" onPress={() => setState({ phase: 'preview' })} />
       </View>
     );
