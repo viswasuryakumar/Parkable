@@ -26,6 +26,26 @@ function normalizePhoto(raw: string): { base64: string; mediaType: string } {
   return { mediaType: 'image/jpeg', base64: raw };
 }
 
+/**
+ * expo-camera's web preview is CSS-mirrored ONLY for a front-facing camera
+ * (verified in its source: ExpoCamera.web.js applies scaleX(-1) exactly when
+ * native.type === 'front'). A laptop has no true back camera, so requesting
+ * facing="back" silently falls back to the only camera it has — the
+ * front-facing webcam — which IS mirrored, and needs a counter-flip so
+ * framing matches what's actually uploaded. A phone's browser has a real
+ * back/environment camera, which is NOT mirrored to begin with — applying
+ * the same counter-flip there un-does nothing and just mirrors a correct
+ * image (a real bug this project hit). Distinguishing the two needs a
+ * platform check finer than "is this web", since RN Web reports web for
+ * both: sniff the user agent for a mobile OS.
+ */
+function isMobileWebBrowser(): boolean {
+  if (Platform.OS !== 'web' || typeof navigator === 'undefined') {
+    return false;
+  }
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
 export default function CameraScreen() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [state, setState] = React.useState<FlowState>({ phase: 'preview' });
@@ -170,16 +190,17 @@ export default function CameraScreen() {
     );
   }
 
+  const needsUnmirror = Platform.OS === 'web' && !isMobileWebBrowser();
+
   return (
     <View style={styles.cameraContainer}>
-      {/* Expo's web build treats every desktop webcam as front-facing and
-          CSS-mirrors the PREVIEW only — the captured upload is NOT mirrored
-          (verified in expo-camera's WebCameraUtils: takePicture never sets
-          isImageMirror). Wrapping in our own scaleX(-1) on web cancels the
-          preview mirror so what you see is exactly what the backend gets —
-          critical for directional arrows, where a mirrored preview shows
-          the arrow pointing the wrong way. */}
-      <View style={Platform.OS === 'web' ? styles.unmirror : styles.cameraFill}>
+      {/* Counter-flip only a desktop browser's forced-front webcam preview
+          (see isMobileWebBrowser doc above) — a phone browser's real back
+          camera must render untouched. Either way the captured PHOTO itself
+          was never mirrored (expo-camera's takePicture never sets
+          isImageMirror); this transform only affects what's on screen while
+          framing the shot. */}
+      <View style={needsUnmirror ? styles.unmirror : styles.cameraFill}>
         <CameraView ref={cameraRef} style={styles.cameraFill} facing="back" />
       </View>
       <View style={styles.controls}>
