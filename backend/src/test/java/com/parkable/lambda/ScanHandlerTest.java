@@ -91,6 +91,29 @@ class ScanHandlerTest {
     }
 
     @Test
+    void aDifferentSignFifteenMetersAwayIsNotWipedOutByRescanningTheFirst() throws Exception {
+        // The supersede radius must be tighter than CheckHandler's 25m query
+        // radius: two genuinely different signs commonly stand within 25m of
+        // each other on a real block, and someone rescanning sign A must
+        // never delete a stranger's earlier scan of sign B nearby. 15m is
+        // inside the old (wrong) 25m radius but outside the corrected 8m one.
+        InMemoryRuleRepository repository = new InMemoryRuleRepository();
+        VisionExtractor secondScanDifferentId = image -> withExtractionId(validSuccess(), "scan-2");
+        // ~15.6m north of validBody()'s (37.7749, -122.4194).
+        String nearbyDifferentSignBody = """
+                {"photo_base64":"%s","media_type":"image/jpeg","lat":37.77504,"lng":-122.4194,
+                 "at":"2026-07-14T18:04:00Z"}
+                """.formatted(java.util.Base64.getEncoder().encodeToString(new byte[] {1, 2, 3}));
+
+        new ScanHandler(image -> validSuccess(), repository, FIXED_CLOCK)
+                .handleRequest(new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+        new ScanHandler(secondScanDifferentId, repository, FIXED_CLOCK)
+                .handleRequest(new APIGatewayProxyRequestEvent().withBody(nearbyDifferentSignBody), null);
+
+        assertThat(repository.findAll()).hasSize(2);
+    }
+
+    @Test
     void rescanFarAwayDoesNotSupersedeADifferentSign() throws Exception {
         // Two genuinely distinct scan events need distinct extraction_ids -
         // a real vision call always mints a fresh one; only reusing the

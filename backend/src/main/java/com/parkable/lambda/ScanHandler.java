@@ -48,6 +48,10 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
     private static final Set<String> SUPPORTED_MEDIA_TYPES =
             Set.of("image/jpeg", "image/png", "image/gif", "image/webp");
 
+    // Tighter than CheckHandler.CHECK_RADIUS_METERS (25m) on purpose - see
+    // the comment at the supersedeNearby call site.
+    static final double SUPERSEDE_RADIUS_METERS = 8.0;
+
     private final ObjectMapper mapper = new ObjectMapper();
     private final VisionExtractor extractor;
     private final RuleRepository repository;
@@ -89,8 +93,19 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             // possibly-contradictory extractions of what is really one sign
             // (found live: the same sign scanned twice produced two
             // different sets of hours, both still showing up).
+            //
+            // Deliberately NOT CheckHandler.CHECK_RADIUS_METERS (25m): that
+            // radius is tuned for answering a query generously (harmless if
+            // slightly too wide - worst case, an extra nearby rule shows up).
+            // Deleting is destructive and shares no such safety margin - two
+            // genuinely different signs often stand within 25m of each other
+            // on a real block, and reusing the same tolerance here would let
+            // rescanning one wipe out a different person's scan of the
+            // other. SUPERSEDE_RADIUS_METERS is deliberately tighter: close
+            // enough to be "GPS drift while standing at the same sign,"
+            // not "somewhere on the same block."
             repository.supersedeNearby(
-                    "camera_scan", request.latitude(), request.longitude(), CheckHandler.CHECK_RADIUS_METERS);
+                    "camera_scan", request.latitude(), request.longitude(), SUPERSEDE_RADIUS_METERS);
             repository.save(new ExtractionRecord(
                     success.envelope(),
                     success.metadata().photoReference(),
