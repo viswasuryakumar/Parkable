@@ -66,9 +66,13 @@ export default function CameraScreen() {
     }
     setState({ phase: 'uploading' });
     try {
-      // quality 0.5 keeps the base64 payload well under API Gateway's 10MB
-      // limit while staying readable for extraction (plan D3: base64 v1).
-      const photo = await camera.takePictureAsync({ base64: true, quality: 0.5 });
+      // 0.5 (the original setting) over-compressed real signs into unreadable
+      // mush - a user's photo came out blurrier than their phone's own camera
+      // app, and re-scans kept needing retries. 0.85 is still nowhere near
+      // API Gateway's 10MB body limit (a phone/webcam photo at this quality
+      // is typically well under 1MB), so there's no real tradeoff here -
+      // 0.5 was just too aggressive for what it was trying to protect against.
+      const photo = await camera.takePictureAsync({ base64: true, quality: 0.85 });
       if (!photo?.base64) {
         setState({ phase: 'error', message: 'Could not capture a photo. Try again.' });
         return;
