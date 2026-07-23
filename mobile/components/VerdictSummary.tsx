@@ -97,7 +97,9 @@ export default function VerdictSummary({
         <Text style={styles.countdown}>
           {verdict.verdict === 'PARKABLE'
             ? `Move your car within ${formatCountdown(msRemaining)}`
-            : `Situation changes in ${formatCountdown(msRemaining)}`}
+            : verdict.verdict === 'NOT_PARKABLE'
+              ? `This restriction lifts in ${formatCountdown(msRemaining)}`
+              : `This may change in ${formatCountdown(msRemaining)}`}
         </Text>
       ) : null}
       {!awaitingTimerStart && msRemaining !== null && msRemaining <= 0 ? (

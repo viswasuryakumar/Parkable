@@ -148,7 +148,14 @@ public final class RulesEngine {
     private static String reasonFor(Rule rule) {
         String description = rule.metadata().description();
         return switch (rule) {
-            case NoParkingRule ignored -> "No parking in effect: " + description;
+            // Not "No parking in effect: <description>" - a live sign's own
+            // description was "No loading" (a distinct concept from parking,
+            // even though the engine's restrictiveness ranking treats it
+            // like a no-parking rule), and stacking our own "No parking"
+            // label in front of that read as contradictory nonsense to a
+            // real user. The verdict headline above already says "Do not
+            // park here"; this line's only job is explaining why.
+            case NoParkingRule ignored -> "In effect: " + description;
             case PermitRule permit -> "Permit required (zone " + permit.permitZone() + "): " + description;
             case TimeLimitRule limit ->
                     "Time limit of " + limit.limit().toMinutes() + " minutes applies: " + description;

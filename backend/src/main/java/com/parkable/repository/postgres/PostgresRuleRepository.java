@@ -90,6 +90,16 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
             ORDER BY created_at, id
             """;
 
+    static final String DELETE_NEARBY_SOURCE = """
+            DELETE FROM rules
+            WHERE source = ?
+              AND ST_DWithin(
+                  location,
+                  ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography,
+                  ?
+              )
+            """;
+
     private static final String PARKABLE_METADATA = "_parkable";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -115,6 +125,21 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
             statement.executeBatch();
         } catch (SQLException e) {
             throw storageFailure("save rules", e);
+        }
+    }
+
+    @Override
+    public void supersedeNearby(String source, double latitude, double longitude, double radiusMeters) {
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(DELETE_NEARBY_SOURCE)) {
+            statement.setString(1, source);
+            // Every PostGIS point binding is longitude then latitude.
+            statement.setDouble(2, longitude);
+            statement.setDouble(3, latitude);
+            statement.setDouble(4, radiusMeters);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw storageFailure("supersede nearby rules", e);
         }
     }
 

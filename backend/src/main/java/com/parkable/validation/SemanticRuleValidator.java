@@ -34,10 +34,21 @@ public final class SemanticRuleValidator {
     // signal (no clock time anywhere) before it's trusted.
     private static final Pattern CLOCK_TIME = Pattern.compile("(?i)\\b\\d{1,2}(:\\d{2})?\\s*(AM|PM)\\b");
 
+    // CLAUDE.md's core philosophy is "low confidence -> retake photo, never
+    // confidently wrong" - but until now nothing actually READ the model's
+    // own self-reported confidence field; schema/semantic checks only cover
+    // structural validity, so a blurry photo that still parses into
+    // well-formed JSON sailed through as a trusted verdict. A live blurry
+    // scan did exactly that (found by a user). 0.7 isn't from schema.md
+    // (undocumented); it's a project judgment call - a model naming its own
+    // confidence below that is explicitly telling us it's unsure.
+    private static final double MIN_CONFIDENCE = 0.7;
+
     public ValidationResult validate(ExtractionEnvelope envelope) {
         List<String> errors = new ArrayList<>();
 
         checkTimestamp(envelope.ingestionTimestamp(), errors);
+        checkConfidence(envelope.confidence(), errors);
         checkRuleIdUniqueness(envelope.rules(), errors);
         if (envelope.rules() != null) {
             for (RuleDto rule : envelope.rules()) {
@@ -54,6 +65,13 @@ public final class SemanticRuleValidator {
         }
 
         return errors.isEmpty() ? ValidationResult.ok() : ValidationResult.failure(errors);
+    }
+
+    private static void checkConfidence(Double confidence, List<String> errors) {
+        if (confidence != null && confidence < MIN_CONFIDENCE) {
+            errors.add("Extraction confidence " + confidence + " is below the honest-uncertainty "
+                    + "threshold (" + MIN_CONFIDENCE + ") - the model itself is unsure of this read");
+        }
     }
 
     private static void checkHoursNotDropped(RuleDto rule, String rawText, List<String> errors) {

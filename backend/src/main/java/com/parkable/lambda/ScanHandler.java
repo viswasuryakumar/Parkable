@@ -83,6 +83,14 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             }
 
             ExtractionResult.Success success = (ExtractionResult.Success) result;
+            // A rescan of the same physical sign must REPLACE the previous
+            // camera_scan reading there, not accumulate alongside it -
+            // otherwise /nearby and /check end up reconciling multiple,
+            // possibly-contradictory extractions of what is really one sign
+            // (found live: the same sign scanned twice produced two
+            // different sets of hours, both still showing up).
+            repository.supersedeNearby(
+                    "camera_scan", request.latitude(), request.longitude(), CheckHandler.CHECK_RADIUS_METERS);
             repository.save(new ExtractionRecord(
                     success.envelope(),
                     success.metadata().photoReference(),

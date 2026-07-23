@@ -52,6 +52,32 @@ class InMemoryRuleRepositoryTest {
     }
 
     @Test
+    void supersedeNearbyRemovesOnlyTheSameSourceWithinRadius() {
+        RuleRepository repository = new InMemoryRuleRepository();
+        ExtractionRecord staleCameraScan = record("scan-001", "camera_scan", "extractor-v1");
+        ExtractionRecord govData = record("gov-001", "gov_data", "gov-v1");
+        repository.save(staleCameraScan);
+        repository.save(govData);
+
+        // record()'s fixed point is (37.7749, -122.4194); well within 25m of itself.
+        repository.supersedeNearby("camera_scan", 37.7749, -122.4194, 25.0);
+
+        assertThat(repository.findAll()).containsExactly(govData);
+    }
+
+    @Test
+    void supersedeNearbyLeavesRecordsOutsideTheRadiusAlone() {
+        RuleRepository repository = new InMemoryRuleRepository();
+        ExtractionRecord farAway = record("scan-001", "camera_scan", "extractor-v1");
+        repository.save(farAway);
+
+        // New York is nowhere near the fixed (37.7749, -122.4194) point.
+        repository.supersedeNearby("camera_scan", 40.7128, -74.0060, 25.0);
+
+        assertThat(repository.findAll()).containsExactly(farAway);
+    }
+
+    @Test
     void rejectsInvalidGpsCoordinates() {
         assertThatThrownBy(() -> new ExtractionRecord.GpsCoordinates(91, 0))
                 .isInstanceOf(IllegalArgumentException.class)

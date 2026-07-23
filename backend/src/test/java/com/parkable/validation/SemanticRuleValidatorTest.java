@@ -116,6 +116,44 @@ class SemanticRuleValidatorTest {
     }
 
     @Test
+    void lowConfidenceExtractionIsRejectedEvenWhenStructurallyValid() {
+        // The exact real-world failure: a blurry photo still parses into
+        // well-formed JSON, so structural validation alone would accept it.
+        ExtractionEnvelope envelope = new ExtractionEnvelope("e1", "camera_scan", null, null,
+                "test-v1", "2026-07-14T18:04:00Z", null, 0.4, null, null, null,
+                List.of(rule("r1", new TimeWindowDto("08:00", "18:00", false, false), ANY_DAY)));
+
+        ValidationResult result = validator.validate(envelope);
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.errors()).anySatisfy(e -> assertThat(e).contains("confidence"));
+    }
+
+    @Test
+    void confidenceAtOrAboveThresholdPasses() {
+        ExtractionEnvelope envelope = new ExtractionEnvelope("e1", "camera_scan", null, null,
+                "test-v1", "2026-07-14T18:04:00Z", null, 0.7, null, null, null,
+                List.of(rule("r1", new TimeWindowDto("08:00", "18:00", false, false), ANY_DAY)));
+
+        ValidationResult result = validator.validate(envelope);
+
+        assertThat(result.valid()).as("errors: " + result.errors()).isTrue();
+    }
+
+    @Test
+    void missingConfidenceIsNotPenalized() {
+        // Gov ETL and other non-LLM sources may never set confidence at all;
+        // absence isn't the same claim as "I'm unsure".
+        ExtractionEnvelope envelope = new ExtractionEnvelope("e1", "camera_scan", null, null,
+                "test-v1", "2026-07-14T18:04:00Z", null, null, null, null, null,
+                List.of(rule("r1", new TimeWindowDto("08:00", "18:00", false, false), ANY_DAY)));
+
+        ValidationResult result = validator.validate(envelope);
+
+        assertThat(result.valid()).as("errors: " + result.errors()).isTrue();
+    }
+
+    @Test
     void emptyTimeWindowsWithClockTimeInDescriptionIsRejected() {
         RuleDto rule = new RuleDto("r1", null, "time_limit", "2 Hour Parking 8AM to 5PM", null,
                 new RestrictionDto(120, null, null, null, null), null, ANY_DAY, null, null, null);

@@ -69,6 +69,8 @@ class PostgresRuleRepositoryTest {
                         com.parkable.extraction.OpenRouterVisionExtractor.PARSER_VERSION,
                         "gov-nyc-mapper-v1", "gov-chicago-mapper-v1",
                         "gov-la-mapper-v1", "gov-sf-mapper-v1", "gov-seattle-mapper-v1");
+        assertThat(PostgresRuleRepository.DELETE_NEARBY_SOURCE)
+                .contains("DELETE FROM rules", "source = ?", "ST_DWithin", "ST_MakePoint(?, ?)");
     }
 
     @Test

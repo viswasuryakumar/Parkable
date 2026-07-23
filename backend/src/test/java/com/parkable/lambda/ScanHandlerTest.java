@@ -76,6 +76,51 @@ class ScanHandlerTest {
     }
 
     @Test
+    void rescanningTheSameSpotSupersedesThePreviousScanInsteadOfAccumulating() throws Exception {
+        // The real bug this guards: a rescan of the same physical sign must
+        // replace the stale reading, not coexist with it - otherwise /nearby
+        // ends up serving two different (and possibly contradictory)
+        // extractions of what is really one sign.
+        InMemoryRuleRepository repository = new InMemoryRuleRepository();
+        ScanHandler handler = new ScanHandler(image -> validSuccess(), repository, FIXED_CLOCK);
+
+        handler.handleRequest(new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+        handler.handleRequest(new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+
+        assertThat(repository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void rescanFarAwayDoesNotSupersedeADifferentSign() throws Exception {
+        // Two genuinely distinct scan events need distinct extraction_ids -
+        // a real vision call always mints a fresh one; only reusing the
+        // fixture's fixed id (as validSuccess() does every time) would
+        // collide at InMemoryRuleRepository's own extraction_id key,
+        // independent of location entirely.
+        InMemoryRuleRepository repository = new InMemoryRuleRepository();
+        VisionExtractor secondScanDifferentId = image -> withExtractionId(validSuccess(), "scan-2");
+        ScanHandler handler = new ScanHandler(secondScanDifferentId, repository, FIXED_CLOCK);
+        String farAwayBody = """
+                {"photo_base64":"%s","media_type":"image/jpeg","lat":40.7128,"lng":-74.0060,
+                 "at":"2026-07-14T18:04:00Z"}
+                """.formatted(java.util.Base64.getEncoder().encodeToString(new byte[] {1, 2, 3}));
+
+        new ScanHandler(image -> validSuccess(), repository, FIXED_CLOCK)
+                .handleRequest(new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+        handler.handleRequest(new APIGatewayProxyRequestEvent().withBody(farAwayBody), null);
+
+        assertThat(repository.findAll()).hasSize(2);
+    }
+
+    private static ExtractionResult.Success withExtractionId(ExtractionResult.Success original, String newId) {
+        ExtractionEnvelope e = original.envelope();
+        ExtractionEnvelope withId = new ExtractionEnvelope(newId, e.source(), e.city(), e.state(),
+                e.parserVersion(), e.ingestionTimestamp(), e.extractionMethod(), e.confidence(),
+                e.coverageCompleteness(), e.notes(), e.rawText(), e.rules());
+        return new ExtractionResult.Success(withId, original.rawJson(), original.metadata());
+    }
+
+    @Test
     void unreadableSignReturns422AndStoresNothing() {
         InMemoryRuleRepository repository = new InMemoryRuleRepository();
         VisionExtractor alwaysNeedsReview = image -> new ExtractionResult.NeedsReview(
