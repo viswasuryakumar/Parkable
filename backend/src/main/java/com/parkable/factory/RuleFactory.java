@@ -12,6 +12,7 @@ import com.parkable.model.DateRange;
 import com.parkable.model.DayPattern;
 import com.parkable.model.DirectionalModifier;
 import com.parkable.model.HolidayPolicy;
+import com.parkable.model.InformationalRule;
 import com.parkable.model.NoParkingRule;
 import com.parkable.model.NthWeekdayOfMonth;
 import com.parkable.model.PermitRule;
@@ -75,6 +76,12 @@ public final class RuleFactory {
                     metadata, Duration.ofMinutes(dto.restriction().durationMinutes()));
             case "permit_required" -> new PermitRule(metadata, dto.restriction().permitType());
             case "color_curb" -> colorCurbRule(dto, metadata);
+            // Prohibits a second row, not the curb space itself - flattening
+            // it into NoParkingRule would make a legal single-vehicle spot
+            // read as permanently NOT_PARKABLE (found live: a sign's "No
+            // Double Parking Any Time" panel silently overrode a legitimate
+            // time-limited rule on the same pole).
+            case "double_parking_prohibited" -> new InformationalRule(metadata);
             default -> throw new UnsupportedSignTypeException(dto.type());
         };
     }
@@ -206,12 +213,14 @@ public final class RuleFactory {
             case NoParkingRule ignored -> "no_parking";
             case TimeLimitRule ignored -> "time_limit";
             case PermitRule ignored -> "permit_required";
+            case InformationalRule ignored -> "double_parking_prohibited";
         };
         RestrictionDto restriction = switch (rule) {
             case NoParkingRule ignored -> null;
             case TimeLimitRule timeLimitRule ->
                     new RestrictionDto((int) timeLimitRule.limit().toMinutes(), null, null, null, null);
             case PermitRule permitRule -> new RestrictionDto(null, permitRule.permitZone(), null, null, null);
+            case InformationalRule ignored -> null;
         };
         return new RuleDto(
                 metadata.ruleId(),

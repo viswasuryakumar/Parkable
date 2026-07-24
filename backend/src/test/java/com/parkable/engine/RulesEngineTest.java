@@ -99,6 +99,29 @@ class RulesEngineTest {
     }
 
     @Test
+    void soleActiveInformationalRuleIsParkable() {
+        // "No Double Parking Any Time" alone - restricts a second row, not
+        // the curb space itself.
+        Rule noDoubleParking = new RuleBuilder().informational().withId("info-1")
+                .withDescription("No Double Parking").onAnyDay().anyTime().build();
+        VerdictResult result = engine.evaluate(List.of(noDoubleParking), WED_10AM, LA, Optional.empty());
+        assertThat(result.verdict()).isEqualTo(Verdict.PARKABLE);
+        assertThat(result.triggeringRule().orElseThrow().rule().metadata().ruleId()).isEqualTo("info-1");
+    }
+
+    @Test
+    void informationalRuleNeverOutranksAGenuineRestriction() {
+        // Exactly the live bug: a "No Double Parking Any Time" panel must
+        // NOT silently override the sign's real, time-limited rule.
+        Rule noDoubleParking = new RuleBuilder().informational().withId("info-1")
+                .withDescription("No Double Parking").onAnyDay().anyTime().build();
+        VerdictResult result = engine.evaluate(
+                List.of(noDoubleParking, twoHourLimit("tl-1")), WED_10AM, LA, Optional.empty());
+        assertThat(result.verdict()).isEqualTo(Verdict.PARKABLE);
+        assertThat(result.triggeringRule().orElseThrow().rule().metadata().ruleId()).isEqualTo("tl-1");
+    }
+
+    @Test
     void activePermitRuleYieldsDepends() {
         Rule permit = new RuleBuilder().permit("A").withId("permit-A")
                 .withDescription("Residential Permit Zone A").onAnyDay().anyTime().build();

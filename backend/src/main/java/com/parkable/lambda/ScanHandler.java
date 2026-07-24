@@ -87,25 +87,24 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             }
 
             ExtractionResult.Success success = (ExtractionResult.Success) result;
+            List<Rule> rules = RuleFactory.fromEnvelope(success.envelope());
+
             // A rescan of the same physical sign must REPLACE the previous
             // camera_scan reading there, not accumulate alongside it -
             // otherwise /nearby and /check end up reconciling multiple,
-            // possibly-contradictory extractions of what is really one sign
-            // (found live: the same sign scanned twice produced two
-            // different sets of hours, both still showing up).
-            //
-            // Deliberately NOT CheckHandler.CHECK_RADIUS_METERS (25m): that
-            // radius is tuned for answering a query generously (harmless if
-            // slightly too wide - worst case, an extra nearby rule shows up).
-            // Deleting is destructive and shares no such safety margin - two
-            // genuinely different signs often stand within 25m of each other
-            // on a real block, and reusing the same tolerance here would let
-            // rescanning one wipe out a different person's scan of the
-            // other. SUPERSEDE_RADIUS_METERS is deliberately tighter: close
-            // enough to be "GPS drift while standing at the same sign,"
-            // not "somewhere on the same block."
-            repository.supersedeNearby(
-                    "camera_scan", request.latitude(), request.longitude(), SUPERSEDE_RADIUS_METERS);
+            // possibly-contradictory extractions of what is really one sign.
+            // But proximity alone can't tell "same sign, re-read" apart from
+            // "different sign, nearby": distinct regulatory signs commonly
+            // stand within a few metres of each other (a loading zone ending
+            // where a permit zone begins), well inside realistic GPS
+            // accuracy, and an earlier proximity-only version of this wiped
+            // out a real, different 3-panel sign the moment a second sign
+            // was scanned nearby. supersedeMatching only deletes existing
+            // rows that describesSameRegulation() one of THIS scan's rules -
+            // same day pattern, same time windows, same type-specific detail
+            // - so a genuinely different sign a few metres away survives.
+            repository.supersedeMatching(
+                    "camera_scan", request.latitude(), request.longitude(), SUPERSEDE_RADIUS_METERS, rules);
             repository.save(new ExtractionRecord(
                     success.envelope(),
                     success.metadata().photoReference(),
@@ -114,11 +113,10 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
                     Optional.of(new ExtractionRecord.GpsCoordinates(request.latitude(), request.longitude())),
                     success.metadata().extractedAt()));
 
-            List<Rule> rules = RuleFactory.fromEnvelope(success.envelope());
             VerdictResult verdict = engine.evaluate(rules, request.at(), request.zone(), request.side());
             List<StoredRule> stored = rules.stream()
                     .map(rule -> new StoredRule(rule, "camera_scan", success.metadata().parserVersion(),
-                            request.latitude(), request.longitude()))
+                            request.latitude(), request.longitude(), success.envelope().extractionId()))
                     .toList();
             return Responses.verdict(verdict, stored);
         } catch (QueryParams.BadRequestException e) {

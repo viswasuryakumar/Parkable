@@ -33,7 +33,7 @@ class CheckHandlerTest {
                             DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
                     .duringWindow(LocalTime.of(8, 0), LocalTime.of(18, 0))
                     .build(),
-            "gov_data", "sfmta-etl-v1", 37.7749, -122.4194);
+            "gov_data", "sfmta-etl-v1", 37.7749, -122.4194, "gov-scan-1");
 
     private static APIGatewayProxyResponseEvent call(List<StoredRule> stored, Map<String, String> params) {
         CheckHandler handler = new CheckHandler((lat, lng, radius) -> stored, FIXED_CLOCK);

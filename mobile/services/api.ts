@@ -47,6 +47,7 @@ export type NearbyRule = {
   description: string;
   source: string;
   parser_version: string;
+  scan_id: string;
   days: string;
   hours: string;
   lat: number;

@@ -25,7 +25,7 @@ class NearbyHandlerTest {
     // a known real-world-ish distance to assert distance_m against.
     private static final StoredRule STORED = new StoredRule(
             new RuleBuilder().permit("A").withId("zone-a").withDescription("Permit zone A").build(),
-            "gov_data", "sfmta-etl-v1", 37.77, -122.42);
+            "gov_data", "sfmta-etl-v1", 37.77, -122.42, "gov-scan-1");
 
     @Test
     void listsRuleSummariesWithoutVerdicts() throws Exception {
@@ -42,6 +42,7 @@ class NearbyHandlerTest {
         assertThat(rule.get("rule_id").asText()).isEqualTo("zone-a");
         assertThat(rule.get("source").asText()).isEqualTo("gov_data");
         assertThat(rule.get("parser_version").asText()).isEqualTo("sfmta-etl-v1");
+        assertThat(rule.get("scan_id").asText()).isEqualTo("gov-scan-1");
         assertThat(rule.get("days").asText()).isEqualTo("Every day");
         assertThat(rule.get("hours").asText()).isEqualTo("Any time");
         assertThat(rule.get("lat").asDouble()).isEqualTo(37.77);

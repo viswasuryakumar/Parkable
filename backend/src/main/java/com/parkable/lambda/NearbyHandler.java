@@ -76,6 +76,7 @@ public class NearbyHandler implements RequestHandler<APIGatewayProxyRequestEvent
         summary.put("description", metadata.description());
         summary.put("source", stored.source());
         summary.put("parser_version", stored.parserVersion());
+        summary.put("scan_id", stored.scanId());
         summary.put("days", formatDays(metadata.dayPattern()));
         summary.put("hours", formatHours(metadata.timeWindows()));
         summary.put("lat", stored.latitude());

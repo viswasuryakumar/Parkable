@@ -55,6 +55,7 @@ class PostgresRuleRepositoryTest {
         assertThat(stored.parserVersion()).isEqualTo(ClaudeVisionExtractor.PARSER_VERSION);
         assertThat(stored.latitude()).isEqualTo(37.7749);
         assertThat(stored.longitude()).isEqualTo(-122.4194);
+        assertThat(stored.scanId()).isEqualTo(record.extractionId());
         assertThat(json).contains("_parkable", "photo-1.jpg", record.extractionId());
     }
 
@@ -69,8 +70,10 @@ class PostgresRuleRepositoryTest {
                         com.parkable.extraction.OpenRouterVisionExtractor.PARSER_VERSION,
                         "gov-nyc-mapper-v1", "gov-chicago-mapper-v1",
                         "gov-la-mapper-v1", "gov-sf-mapper-v1", "gov-seattle-mapper-v1");
-        assertThat(PostgresRuleRepository.DELETE_NEARBY_SOURCE)
-                .contains("DELETE FROM rules", "source = ?", "ST_DWithin", "ST_MakePoint(?, ?)");
+        assertThat(PostgresRuleRepository.FIND_NEARBY_SOURCE)
+                .contains("source = ?", "ST_DWithin", "ST_MakePoint(?, ?)");
+        assertThat(PostgresRuleRepository.DELETE_BY_IDS)
+                .contains("DELETE FROM rules", "id = ANY (?)");
     }
 
     @Test

@@ -41,6 +41,11 @@ final class ExtractionPrompt {
                 restriction.extra_details, never emit it as a separate no_parking rule. \
                 A sign saying "20 mins, no return within 40 mins" ALLOWS parking for 20 \
                 minutes.
+                - "No Double Parking" (or similar wording that only prohibits standing a \
+                SECOND row out from the curb) is NOT the same as "No Parking" - it does not \
+                restrict a single vehicle legally parked at the curb itself. Use type \
+                "double_parking_prohibited" for it, never "no_parking" or "restricted" - \
+                misclassifying it makes an unrelated regulation block an otherwise-legal spot.
                 - Do NOT guess fields you cannot read. Never decide whether parking is \
                 allowed - only transcribe the rules.
                 """.formatted(schemaJson, parserVersion, now);

@@ -1,5 +1,7 @@
 package com.parkable.repository;
 
+import com.parkable.model.Rule;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -23,20 +25,27 @@ public interface RuleRepository {
     }
 
     /**
-     * Removes existing records from {@code source} within {@code radiusMeters}
-     * of a point. Every scan gets a fresh extraction_id (Phase 1's
-     * reproducibility contract), so without this, re-scanning the same
-     * physical sign never overwrites anything — it just accumulates another
-     * independent set of rows forever, and {@code /nearby}/{@code /check}
-     * then have to reconcile multiple, possibly-contradictory readings of
-     * what should be one sign (found live: the same "no loading" sign,
-     * scanned twice, produced two different sets of hours). Callers should
-     * invoke this immediately before {@link #save} with the same source, so
-     * a fresh scan supersedes the stale one instead of coexisting with it.
-     * Default no-op is wrong for any implementation meant to serve /check —
-     * only acceptable for a throwaway/test double.
+     * Deletes existing {@code source} rules within {@code radiusMeters} of a
+     * point, but ONLY the ones that {@link Rule#describesSameRegulation}
+     * one of {@code newRules} — proximity alone is not enough to assume
+     * "this is the same sign being re-read." Distinct regulatory signs
+     * commonly stand within the same handful of metres of each other (a
+     * loading zone ending where a permit zone begins, both ends of a short
+     * block), and GPS accuracy is often no better than that spacing, so an
+     * earlier proximity-only version of this method deleted a real,
+     * different 3-panel sign the first time two signs were scanned from
+     * nearby positions. Content matching narrows "supersede" to what it's
+     * actually meant to catch: a genuine re-read of the SAME regulation
+     * (identical day pattern, time windows, and type-specific detail),
+     * leaving anything that reads as a different regulation untouched so it
+     * survives alongside the new scan instead of being silently destroyed.
+     * Callers should invoke this immediately before {@link #save} with the
+     * same source and the about-to-be-saved rules. Default no-op is wrong
+     * for any implementation meant to serve /check — only acceptable for a
+     * throwaway/test double.
      */
-    default void supersedeNearby(String source, double latitude, double longitude, double radiusMeters) {}
+    default void supersedeMatching(String source, double latitude, double longitude,
+                                    double radiusMeters, List<Rule> newRules) {}
 
     Optional<ExtractionRecord> findByExtractionId(String extractionId);
 

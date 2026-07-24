@@ -5,6 +5,7 @@ import com.parkable.model.DateRange;
 import com.parkable.model.DayPattern;
 import com.parkable.model.DirectionalModifier;
 import com.parkable.model.HolidayPolicy;
+import com.parkable.model.InformationalRule;
 import com.parkable.model.NoParkingRule;
 import com.parkable.model.NthWeekdayOfMonth;
 import com.parkable.model.PermitRule;
@@ -30,7 +31,7 @@ import java.util.Set;
  */
 public final class RuleBuilder {
 
-    private enum Type { NO_PARKING, TIME_LIMIT, PERMIT }
+    private enum Type { NO_PARKING, TIME_LIMIT, PERMIT, INFORMATIONAL }
 
     private Type type = Type.NO_PARKING;
     private String ruleId = "test-rule";
@@ -57,6 +58,12 @@ public final class RuleBuilder {
     public RuleBuilder permit(String zone) {
         this.type = Type.PERMIT;
         this.permitZone = zone;
+        return this;
+    }
+
+    /** e.g. "No Double Parking" - never restricts a legally-occupied curb space. */
+    public RuleBuilder informational() {
+        this.type = Type.INFORMATIONAL;
         return this;
     }
 
@@ -132,6 +139,7 @@ public final class RuleBuilder {
             case NO_PARKING -> new NoParkingRule(metadata);
             case TIME_LIMIT -> new TimeLimitRule(metadata, limit);
             case PERMIT -> new PermitRule(metadata, permitZone);
+            case INFORMATIONAL -> new InformationalRule(metadata);
         };
     }
 }

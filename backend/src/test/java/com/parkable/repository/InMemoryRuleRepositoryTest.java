@@ -1,8 +1,13 @@
 package com.parkable.repository;
 
+import com.parkable.builder.RuleBuilder;
 import com.parkable.extraction.dto.ExtractionEnvelope;
+import com.parkable.extraction.dto.RuleDto;
+import com.parkable.factory.RuleFactory;
+import com.parkable.model.Rule;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -52,29 +57,48 @@ class InMemoryRuleRepositoryTest {
     }
 
     @Test
-    void supersedeNearbyRemovesOnlyTheSameSourceWithinRadius() {
+    void supersedeMatchingRemovesOnlyTheSameSourceWithinRadiusAndMatchingContent() {
         RuleRepository repository = new InMemoryRuleRepository();
-        ExtractionRecord staleCameraScan = record("scan-001", "camera_scan", "extractor-v1");
-        ExtractionRecord govData = record("gov-001", "gov_data", "gov-v1");
+        Rule twoHourLimit = new RuleBuilder().timeLimit(Duration.ofMinutes(120)).withId("r1").build();
+        ExtractionRecord staleCameraScan = recordWithRule("scan-001", "camera_scan", "extractor-v1", twoHourLimit);
+        ExtractionRecord govData = recordWithRule("gov-001", "gov_data", "gov-v1", twoHourLimit);
         repository.save(staleCameraScan);
         repository.save(govData);
 
-        // record()'s fixed point is (37.7749, -122.4194); well within 25m of itself.
-        repository.supersedeNearby("camera_scan", 37.7749, -122.4194, 25.0);
+        // recordWithRule()'s fixed point is (37.7749, -122.4194); well within 25m of itself.
+        repository.supersedeMatching("camera_scan", 37.7749, -122.4194, 25.0, List.of(twoHourLimit));
 
         assertThat(repository.findAll()).containsExactly(govData);
     }
 
     @Test
-    void supersedeNearbyLeavesRecordsOutsideTheRadiusAlone() {
+    void supersedeMatchingLeavesRecordsOutsideTheRadiusAlone() {
         RuleRepository repository = new InMemoryRuleRepository();
-        ExtractionRecord farAway = record("scan-001", "camera_scan", "extractor-v1");
+        Rule twoHourLimit = new RuleBuilder().timeLimit(Duration.ofMinutes(120)).withId("r1").build();
+        ExtractionRecord farAway = recordWithRule("scan-001", "camera_scan", "extractor-v1", twoHourLimit);
         repository.save(farAway);
 
         // New York is nowhere near the fixed (37.7749, -122.4194) point.
-        repository.supersedeNearby("camera_scan", 40.7128, -74.0060, 25.0);
+        repository.supersedeMatching("camera_scan", 40.7128, -74.0060, 25.0, List.of(twoHourLimit));
 
         assertThat(repository.findAll()).containsExactly(farAway);
+    }
+
+    @Test
+    void supersedeMatchingLeavesADifferentRegulationAloneEvenAtTheExactSamePoint() {
+        // The real bug this guards: two genuinely different signs scanned
+        // from the same spot must not delete each other just because they
+        // share a location - only a re-read of the SAME regulation should.
+        RuleRepository repository = new InMemoryRuleRepository();
+        Rule noParkingMonWed = new RuleBuilder().noParking().withId("r1")
+                .onDays(java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.WEDNESDAY).anyTime().build();
+        Rule twoHourLimit = new RuleBuilder().timeLimit(Duration.ofMinutes(120)).withId("r2").build();
+        ExtractionRecord existingSign = recordWithRule("scan-001", "camera_scan", "extractor-v1", noParkingMonWed);
+        repository.save(existingSign);
+
+        repository.supersedeMatching("camera_scan", 37.7749, -122.4194, 25.0, List.of(twoHourLimit));
+
+        assertThat(repository.findAll()).containsExactly(existingSign);
     }
 
     @Test
@@ -91,6 +115,19 @@ class InMemoryRuleRepositoryTest {
         return new ExtractionRecord(
                 new ExtractionEnvelope(extractionId, source, null, null, parserVersion,
                         "2026-07-16T18:00:00Z", "camera", 0.95, null, null, null, List.of()),
+                "photos/" + extractionId + ".jpg",
+                source,
+                parserVersion,
+                Optional.of(new ExtractionRecord.GpsCoordinates(37.7749, -122.4194)),
+                Instant.parse("2026-07-16T18:00:00Z"));
+    }
+
+    private static ExtractionRecord recordWithRule(
+            String extractionId, String source, String parserVersion, Rule rule) {
+        RuleDto dto = RuleFactory.toDto(rule);
+        return new ExtractionRecord(
+                new ExtractionEnvelope(extractionId, source, null, null, parserVersion,
+                        "2026-07-16T18:00:00Z", "camera", 0.95, null, null, null, List.of(dto)),
                 "photos/" + extractionId + ".jpg",
                 source,
                 parserVersion,

@@ -13,6 +13,7 @@ import com.parkable.datasource.NycSignMapper;
 import com.parkable.datasource.SeattleSignMapper;
 import com.parkable.datasource.SfSignMapper;
 import com.parkable.factory.RuleFactory;
+import com.parkable.model.Rule;
 import com.parkable.lambda.port.RuleLookup;
 import com.parkable.lambda.port.StoredRule;
 import com.parkable.repository.ExtractionRecord;
@@ -90,8 +91,9 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
             ORDER BY created_at, id
             """;
 
-    static final String DELETE_NEARBY_SOURCE = """
-            DELETE FROM rules
+    static final String FIND_NEARBY_SOURCE = """
+            SELECT id, rule
+            FROM rules
             WHERE source = ?
               AND ST_DWithin(
                   location,
@@ -99,6 +101,8 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
                   ?
               )
             """;
+
+    static final String DELETE_BY_IDS = "DELETE FROM rules WHERE id = ANY (?)";
 
     private static final String PARKABLE_METADATA = "_parkable";
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -129,17 +133,38 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
     }
 
     @Override
-    public void supersedeNearby(String source, double latitude, double longitude, double radiusMeters) {
-        try (Connection connection = openConnection();
-             PreparedStatement statement = connection.prepareStatement(DELETE_NEARBY_SOURCE)) {
-            statement.setString(1, source);
-            // Every PostGIS point binding is longitude then latitude.
-            statement.setDouble(2, longitude);
-            statement.setDouble(3, latitude);
-            statement.setDouble(4, radiusMeters);
-            statement.executeUpdate();
+    public void supersedeMatching(String source, double latitude, double longitude,
+                                   double radiusMeters, List<Rule> newRules) {
+        if (newRules.isEmpty()) {
+            return;
+        }
+        try (Connection connection = openConnection()) {
+            List<UUID> matchingIds = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement(FIND_NEARBY_SOURCE)) {
+                statement.setString(1, source);
+                // Every PostGIS point binding is longitude then latitude.
+                statement.setDouble(2, longitude);
+                statement.setDouble(3, latitude);
+                statement.setDouble(4, radiusMeters);
+                try (ResultSet results = statement.executeQuery()) {
+                    while (results.next()) {
+                        Rule existing = RuleFactory.from(MAPPER.readValue(results.getString("rule"), RuleDto.class));
+                        if (newRules.stream().anyMatch(existing::describesSameRegulation)) {
+                            matchingIds.add((UUID) results.getObject("id"));
+                        }
+                    }
+                }
+            }
+            if (!matchingIds.isEmpty()) {
+                try (PreparedStatement delete = connection.prepareStatement(DELETE_BY_IDS)) {
+                    delete.setArray(1, connection.createArrayOf("uuid", matchingIds.toArray()));
+                    delete.executeUpdate();
+                }
+            }
         } catch (SQLException e) {
-            throw storageFailure("supersede nearby rules", e);
+            throw storageFailure("supersede matching rules", e);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Stored rule is not valid JSON", e);
         }
     }
 
@@ -288,8 +313,10 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
     static StoredRule toStoredRule(String json, String source, String parserVersion,
                                    double latitude, double longitude) {
         try {
-            RuleDto dto = MAPPER.readValue(json, RuleDto.class);
-            return new StoredRule(RuleFactory.from(dto), source, parserVersion, latitude, longitude);
+            JsonNode stored = MAPPER.readTree(json);
+            RuleDto dto = MAPPER.treeToValue(stored, RuleDto.class);
+            String scanId = stored.path(PARKABLE_METADATA).path("extraction_id").asText();
+            return new StoredRule(RuleFactory.from(dto), source, parserVersion, latitude, longitude, scanId);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Stored rule is not valid JSON", e);
         }

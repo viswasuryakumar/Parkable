@@ -1,5 +1,6 @@
 package com.parkable.engine;
 
+import com.parkable.model.InformationalRule;
 import com.parkable.model.NoParkingRule;
 import com.parkable.model.PermitRule;
 import com.parkable.model.Rule;
@@ -133,6 +134,10 @@ public final class RulesEngine {
             case NoParkingRule ignored -> 3;
             case PermitRule ignored -> 2;
             case TimeLimitRule ignored -> 1;
+            // Never restricts a single legally-occupied curb space (e.g. "No
+            // Double Parking" only prohibits a second row) - weakest of all,
+            // so any genuine restriction sharing the sign always outranks it.
+            case InformationalRule ignored -> 0;
         };
     }
 
@@ -142,6 +147,7 @@ public final class RulesEngine {
             // The engine cannot verify permit possession: honest answer is DEPENDS.
             case PermitRule ignored -> Verdict.DEPENDS;
             case TimeLimitRule ignored -> Verdict.PARKABLE;
+            case InformationalRule ignored -> Verdict.PARKABLE;
         };
     }
 
@@ -159,6 +165,9 @@ public final class RulesEngine {
             case PermitRule permit -> "Permit required (zone " + permit.permitZone() + "): " + description;
             case TimeLimitRule limit ->
                     "Time limit of " + limit.limit().toMinutes() + " minutes applies: " + description;
+            // Never the reason parking is disallowed - if this is the
+            // triggering rule, nothing else on the sign restricts the space.
+            case InformationalRule ignored -> "Does not restrict this space: " + description;
         };
     }
 }

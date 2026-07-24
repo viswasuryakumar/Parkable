@@ -33,7 +33,7 @@
       "properties": {
         "rule_id": { "type": "string", "minLength": 1 },
         "source_rule_id": { "type": "string" },
-        "type": { "enum": ["time_limit", "no_parking", "permit_required", "restricted", "street_cleaning", "color_curb"] },
+        "type": { "enum": ["time_limit", "no_parking", "permit_required", "restricted", "street_cleaning", "color_curb", "double_parking_prohibited"] },
         "description": { "type": "string" },
         "original_description": { "type": "string" },
         "restriction": {

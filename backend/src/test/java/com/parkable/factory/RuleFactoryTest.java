@@ -9,6 +9,7 @@ import com.parkable.extraction.dto.RuleDto;
 import com.parkable.extraction.dto.TimeWindowDto;
 import com.parkable.model.ArrowDirection;
 import com.parkable.model.DateRange;
+import com.parkable.model.InformationalRule;
 import com.parkable.model.NoParkingRule;
 import com.parkable.model.PermitRule;
 import com.parkable.model.Rule;
@@ -75,6 +76,26 @@ class RuleFactoryTest {
 
         assertThat(rule).isInstanceOf(PermitRule.class);
         assertThat(((PermitRule) rule).permitZone()).isEqualTo("residential");
+    }
+
+    @Test
+    void mapsDoubleParkingProhibitedToInformationalRuleNotNoParking() {
+        // The live bug this guards: a "No Double Parking" sign restricts a
+        // second row, not the curb space - it must never become a
+        // NoParkingRule, which the engine treats as always-NOT_PARKABLE.
+        Rule rule = RuleFactory.from(ruleDto("double_parking_prohibited", null));
+
+        assertThat(rule).isInstanceOf(InformationalRule.class);
+        assertThat(rule.metadata().ruleId()).isEqualTo("r1");
+    }
+
+    @Test
+    void toDtoRoundTripsInformationalRule() {
+        Rule original = RuleFactory.from(ruleDto("double_parking_prohibited", null));
+
+        Rule roundTripped = RuleFactory.from(RuleFactory.toDto(original));
+
+        assertThat(roundTripped).isEqualTo(original);
     }
 
     @Test

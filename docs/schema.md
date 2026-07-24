@@ -72,7 +72,7 @@ One rule object = one distinct parking regulation (could be time-based, permit-b
   // Identification
   "rule_id": "unique_within_extraction",                      // UUID or government ID
   "source_rule_id": "SFMTA_12345 | NYC_SIMS_54321",          // original government identifier (if applicable)
-  "type": "time_limit | no_parking | permit_required | restricted | street_cleaning | color_curb",
+  "type": "time_limit | no_parking | permit_required | restricted | street_cleaning | color_curb | double_parking_prohibited",
 
   // Human-Readable Reference
   "description": "2 Hour Parking Mon-Fri 8am-6pm",           // human text as it appears on sign/ordinance
@@ -387,7 +387,8 @@ When Claude Vision (or other LLM) extracts from a parking sign photo:
 
 ```
 1. rule_id: required, non-empty string
-2. type: required, one of {time_limit, no_parking, permit_required, restricted, street_cleaning, color_curb}
+2. type: required, one of {time_limit, no_parking, permit_required, restricted, street_cleaning, color_curb, double_parking_prohibited}
+   - double_parking_prohibited: for regulations that restrict standing a SECOND row out (e.g. "No Double Parking"), not the curb space itself — a legal single-vehicle spot next to this sign is still parkable. Never map this to no_parking/restricted; doing so makes the engine treat an unrelated regulation as blocking the space (see RulesEngine's InformationalRule handling, restrictiveness 0, always resolves PARKABLE).
 3. description: required if type != color_curb, non-empty string
 4. restriction: required; contents depend on type
    - type=time_limit: duration_minutes must be > 0

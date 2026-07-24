@@ -1,5 +1,14 @@
 import React from 'react';
-import { ActivityIndicator, Button, FlatList, Platform, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Button,
+  FlatList,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import * as Location from 'expo-location';
 import { NearbyRule, nearbyParking } from '../services/api';
 import { describeLocation } from '../utils/geo';
@@ -9,13 +18,27 @@ type ScreenState =
   | { phase: 'list'; groups: SignGroup[]; userLat: number; userLng: number }
   | { phase: 'error'; message: string };
 
+// Every rule extracted from ONE photo shares that scan's extraction_id
+// (ScanHandler stamps the same scan_id on all of it) - a scan's rules are
+// panels of ONE physical sign board and always render stacked together.
+type ScanGroup = {
+  scanId: string;
+  rules: NearbyRule[];
+};
+
 type SignGroup = {
   key: string;
   lat: number;
   lng: number;
   distanceM: number;
   source: string;
-  rules: NearbyRule[];
+  // Almost always one entry. More than one means two DIFFERENT scans landed
+  // at (near enough) the same point - a real, distinct second sign a few
+  // metres away, not a re-read of the first (the backend's content-match
+  // supersede already collapses true re-reads into one scan_id) - rendered
+  // as a horizontal carousel instead of stacking unrelated signs into one
+  // card, which would read as one sign with contradictory rules.
+  scans: ScanGroup[];
 };
 
 // Device reverse-geocoding is native-only (expo-location's web shim always
@@ -26,28 +49,34 @@ const MAX_STREET_LOOKUPS = 15;
 
 /**
  * Every rule extracted from ONE photo shares that scan's single GPS reading
- * exactly (ScanHandler stamps the same lat/lng on all of it), and gov-data
- * rows likewise carry one real-world point per regulation - so rounding
- * to ~1m and grouping by (source, point) recovers "which rules came off the
- * same physical sign post" with no backend change or extra field needed.
+ * exactly, and gov-data rows likewise carry one real-world point per
+ * regulation - so rounding to ~1m and grouping by (source, point) recovers
+ * "which rules came from signs standing at the same spot" with no extra
+ * lookup. Within that, scan_id separates "panels of one sign" from
+ * "two different signs that happen to share a spot."
  */
 function groupBySign(rules: NearbyRule[]): SignGroup[] {
   const groups = new Map<string, SignGroup>();
   for (const rule of rules) {
     const key = `${rule.source}:${rule.lat.toFixed(5)}:${rule.lng.toFixed(5)}`;
-    const existing = groups.get(key);
-    if (existing) {
-      existing.rules.push(rule);
-    } else {
-      groups.set(key, {
+    let group = groups.get(key);
+    if (!group) {
+      group = {
         key,
         lat: rule.lat,
         lng: rule.lng,
         distanceM: rule.distance_m,
         source: rule.source,
-        rules: [rule],
-      });
+        scans: [],
+      };
+      groups.set(key, group);
     }
+    let scan = group.scans.find((s) => s.scanId === rule.scan_id);
+    if (!scan) {
+      scan = { scanId: rule.scan_id, rules: [] };
+      group.scans.push(scan);
+    }
+    scan.rules.push(rule);
   }
   return Array.from(groups.values()).sort((a, b) => a.distanceM - b.distanceM);
 }
@@ -55,10 +84,12 @@ function groupBySign(rules: NearbyRule[]): SignGroup[] {
 export default function NearbyScreen() {
   const [state, setState] = React.useState<ScreenState>({ phase: 'loading' });
   const [streetNames, setStreetNames] = React.useState<Record<string, string>>({});
+  const [activeScanIndex, setActiveScanIndex] = React.useState<Record<string, number>>({});
 
   const load = React.useCallback(async () => {
     setState({ phase: 'loading' });
     setStreetNames({});
+    setActiveScanIndex({});
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
@@ -135,13 +166,17 @@ export default function NearbyScreen() {
   }
 
   const { userLat, userLng } = state;
-  const totalRules = state.groups.reduce((sum, g) => sum + g.rules.length, 0);
+  const totalRules = state.groups.reduce(
+    (sum, g) => sum + g.scans.reduce((scanSum, s) => scanSum + s.rules.length, 0),
+    0
+  );
+  const totalSigns = state.groups.reduce((sum, g) => sum + g.scans.length, 0);
 
   return (
     <View style={styles.listContainer}>
       <Text style={styles.heading}>
-        {totalRules} rule{totalRules === 1 ? '' : 's'} on {state.groups.length} sign
-        {state.groups.length === 1 ? '' : 's'} near you
+        {totalRules} rule{totalRules === 1 ? '' : 's'} on {totalSigns} sign
+        {totalSigns === 1 ? '' : 's'} near you
       </Text>
       <FlatList
         data={state.groups}
@@ -151,12 +186,46 @@ export default function NearbyScreen() {
           const location = street
             ? `Near ${street}`
             : describeLocation(userLat, userLng, group.lat, group.lng, group.distanceM);
+          const scanIndex = Math.min(activeScanIndex[group.key] ?? 0, group.scans.length - 1);
+          const activeScan = group.scans[scanIndex];
+          const hasMultipleSigns = group.scans.length > 1;
+          const moveScan = (delta: number) =>
+            setActiveScanIndex((prev) => ({
+              ...prev,
+              [group.key]: Math.max(0, Math.min(group.scans.length - 1, scanIndex + delta)),
+            }));
           return (
             <View style={styles.signCard}>
               <View style={styles.signPost} />
               <View style={styles.signBody}>
                 <Text style={styles.cardLocation}>{location}</Text>
-                {group.rules.map((rule, index) => (
+                {hasMultipleSigns && (
+                  <View style={styles.carouselHeader}>
+                    <Pressable
+                      onPress={() => moveScan(-1)}
+                      disabled={scanIndex === 0}
+                      hitSlop={8}
+                      style={[styles.carouselArrow, scanIndex === 0 && styles.carouselArrowDisabled]}
+                    >
+                      <Text style={styles.carouselArrowText}>‹</Text>
+                    </Pressable>
+                    <Text style={styles.carouselLabel}>
+                      Sign {scanIndex + 1} of {group.scans.length} here
+                    </Text>
+                    <Pressable
+                      onPress={() => moveScan(1)}
+                      disabled={scanIndex === group.scans.length - 1}
+                      hitSlop={8}
+                      style={[
+                        styles.carouselArrow,
+                        scanIndex === group.scans.length - 1 && styles.carouselArrowDisabled,
+                      ]}
+                    >
+                      <Text style={styles.carouselArrowText}>›</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {activeScan.rules.map((rule, index) => (
                   <View
                     key={rule.rule_id}
                     style={index > 0 ? styles.rulePanelDivider : undefined}
@@ -209,6 +278,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6',
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  carouselHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  carouselArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carouselArrowDisabled: {
+    opacity: 0.35,
+  },
+  carouselArrowText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#374151',
+    lineHeight: 18,
+  },
+  carouselLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
   },
   signPost: {
     width: 6,

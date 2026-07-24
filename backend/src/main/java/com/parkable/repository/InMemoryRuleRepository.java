@@ -1,5 +1,8 @@
 package com.parkable.repository;
 
+import com.parkable.factory.RuleFactory;
+import com.parkable.model.Rule;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,13 +26,20 @@ public final class InMemoryRuleRepository implements RuleRepository {
     }
 
     @Override
-    public void supersedeNearby(String source, double latitude, double longitude, double radiusMeters) {
+    public void supersedeMatching(String source, double latitude, double longitude,
+                                   double radiusMeters, List<Rule> newRules) {
+        // Storage here is per-scan (whole ExtractionRecord), not per-rule
+        // like Postgres, so a content match against any of the record's
+        // rules supersedes the whole record - fine for this dev/test-only
+        // implementation, where a record is always one small scan's rules.
         recordsByExtractionId.values().removeIf(record ->
                 source.equals(record.source())
                         && record.gpsLocation()
                                 .filter(gps -> metersBetween(gps.latitude(), gps.longitude(), latitude, longitude)
                                         <= radiusMeters)
-                                .isPresent());
+                                .isPresent()
+                        && RuleFactory.fromEnvelope(record.envelope()).stream()
+                                .anyMatch(existing -> newRules.stream().anyMatch(existing::describesSameRegulation)));
     }
 
     @Override
