@@ -1,13 +1,16 @@
 import React from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import RootNavigator from './navigation/RootNavigator';
 import { useTheme } from './theme/colors';
 
 export default function App() {
   const theme = useTheme();
+  const scheme = useColorScheme();
   return (
     <SafeAreaProvider>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <SafeAreaView style={[styles.root, { backgroundColor: theme.background }]}>
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Parkable</Text>
