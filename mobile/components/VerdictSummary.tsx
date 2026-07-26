@@ -1,7 +1,14 @@
 import React from 'react';
-import { ActivityIndicator, Button, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Button, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { VerdictResponse } from '../services/api';
 import { useTheme, VERDICT_COLOR_KEYS } from '../theme/colors';
+
+const HAPTIC_FEEDBACK: Record<string, Haptics.NotificationFeedbackType> = {
+  PARKABLE: Haptics.NotificationFeedbackType.Success,
+  NOT_PARKABLE: Haptics.NotificationFeedbackType.Error,
+  DEPENDS: Haptics.NotificationFeedbackType.Warning,
+};
 
 const VERDICT_HEADLINES: Record<string, string> = {
   PARKABLE: 'You can park here',
@@ -73,8 +80,31 @@ export default function VerdictSummary({
   const isTimeLimited = verdict.verdict === 'PARKABLE' && validUntil !== null;
   const awaitingTimerStart = isTimeLimited && Boolean(onStartTimer) && !timerStarted;
 
+  const reveal = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    reveal.setValue(0);
+    Animated.spring(reveal, { toValue: 1, useNativeDriver: true, friction: 6 }).start();
+    if (Platform.OS !== 'web') {
+      const feedback = HAPTIC_FEEDBACK[verdict.verdict];
+      if (feedback !== undefined) {
+        Haptics.notificationAsync(feedback).catch(() => {});
+      }
+    }
+    // Only the verdict identity should retrigger the reveal - re-renders
+    // from the countdown ticking every minute must not replay the animation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verdict.verdict, verdict.rule_id]);
+
   return (
-    <View style={styles.container}>
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          opacity: reveal,
+          transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+        },
+      ]}
+    >
       {verdict.photo_url ? (
         <Image source={{ uri: verdict.photo_url }} style={styles.photo} resizeMode="cover" />
       ) : null}
@@ -153,7 +183,7 @@ export default function VerdictSummary({
           <Text style={[styles.reportLink, { color: theme.textMuted }]}>Report an issue with this sign</Text>
         </Pressable>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
