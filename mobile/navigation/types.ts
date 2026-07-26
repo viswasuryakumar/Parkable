@@ -1,11 +1,10 @@
-/** Bottom tab routes - the always-visible main screens. */
+/** Bottom tab routes - kept small (4) so it stays scannable; everything
+ * else lives one tap away via Home's quick actions or the root stack. */
 export type TabParamList = {
+  Home: undefined;
   Check: undefined;
   Scan: undefined;
   Nearby: undefined;
-  FindMyCar: undefined;
-  History: undefined;
-  Favorites: undefined;
 };
 
 /**
@@ -16,4 +15,7 @@ export type TabParamList = {
 export type RootStackParamList = {
   Tabs: undefined;
   ReportSign: { ruleId: string };
+  History: undefined;
+  Favorites: undefined;
+  FindMyCar: undefined;
 };

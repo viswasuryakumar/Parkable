@@ -4,6 +4,7 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme } from 'react-native';
+import HomeScreen from '../screens/HomeScreen';
 import VerdictScreen from '../screens/VerdictScreen';
 import CameraScreen from '../screens/CameraScreen';
 import NearbyScreen from '../screens/NearbyScreen';
@@ -18,12 +19,10 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const TAB_ICONS: Record<keyof TabParamList, string> = {
+  Home: '🏠',
   Check: '🅿️',
   Scan: '📷',
   Nearby: '📍',
-  FindMyCar: '🚗',
-  History: '🕘',
-  Favorites: '⭐',
 };
 
 function Tabs() {
@@ -40,12 +39,10 @@ function Tabs() {
         ),
       })}
     >
+      <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Check" component={VerdictScreen} />
       <Tab.Screen name="Scan" component={CameraScreen} />
       <Tab.Screen name="Nearby" component={NearbyScreen} />
-      <Tab.Screen name="FindMyCar" component={FindMyCarScreen} options={{ title: 'Find My Car' }} />
-      <Tab.Screen name="History" component={HistoryScreen} />
-      <Tab.Screen name="Favorites" component={FavoritesScreen} />
     </Tab.Navigator>
   );
 }
@@ -70,6 +67,9 @@ export default function RootNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Tabs" component={Tabs} />
         <Stack.Screen name="ReportSign" component={ReportScreen} options={{ presentation: 'modal' }} />
+        <Stack.Screen name="History" component={HistoryScreen} options={{ headerShown: true, title: 'History' }} />
+        <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: true, title: 'Favorites' }} />
+        <Stack.Screen name="FindMyCar" component={FindMyCarScreen} options={{ headerShown: true, title: 'Find My Car' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
