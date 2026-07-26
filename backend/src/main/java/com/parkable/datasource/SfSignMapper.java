@@ -1,7 +1,9 @@
 package com.parkable.datasource;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.parkable.model.InformationalRule;
 import com.parkable.model.NoParkingRule;
+import com.parkable.model.PermitRule;
 import com.parkable.model.TimeLimitRule;
 
 import java.time.Duration;
@@ -30,8 +32,29 @@ public final class SfSignMapper implements GovRuleMapper {
         String description = regulation.get();
         String ruleId = "sf:parkingregulations:" + id.get();
         String type = regulation.get().toUpperCase();
-        if (type.contains("NO PARK")) {
+        // "No Stopping" and "No overnight parking" are stricter-or-equal to
+        // plain "No Parking" for a driver asking "can I park here" - same
+        // NoParkingRule outcome, just different sign wording (verified live
+        // against the real REGULATION values SFMTA publishes, not guessed).
+        if (type.contains("NO PARK") || type.contains("NO STOP") || type.contains("OVERNIGHT")) {
             return List.of(new MappedRule(new NoParkingRule(GovMapperSupport.metadata(ruleId, description, days.get(),
+                    List.of(window.get()))), location.get().latitude(), location.get().longitude()));
+        }
+        // Exact match, not contains("PERMIT") - "Paid + Permit"/"Pay or
+        // Permit" also contain that word but mean something PermitRule's
+        // DEPENDS verdict would misstate (paying is a valid alternative to
+        // holding a permit there, so it's not honestly "depends on a
+        // permit"). Those need a paid-parking concept this schema doesn't
+        // have yet, so they're left unmapped rather than force-fit.
+        if (type.equals("GOVERNMENT PERMIT")) {
+            return List.of(new MappedRule(new PermitRule(GovMapperSupport.metadata(ruleId, description, days.get(),
+                    List.of(window.get())), description), location.get().latitude(), location.get().longitude()));
+        }
+        // Restricts oversized vehicles only, not a normal car parking in
+        // the space - same InformationalRule pattern as "No Double
+        // Parking": never wins the most-restrictive-wins ranking.
+        if (type.contains("OVERSIZED")) {
+            return List.of(new MappedRule(new InformationalRule(GovMapperSupport.metadata(ruleId, description, days.get(),
                     List.of(window.get()))), location.get().latitude(), location.get().longitude()));
         }
         JsonNode limit = GovMapperSupport.attributes(rawRecord).path("HRLIMIT");

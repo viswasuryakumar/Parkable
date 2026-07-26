@@ -70,7 +70,7 @@ class GovDataImportCliTest {
         assertThat(record.gpsLocation()).isPresent();
         assertThat(record.gpsLocation().get().latitude()).isCloseTo(40.7289, org.assertj.core.data.Offset.offset(0.001));
         assertThat(record.envelope().rules()).hasSize(1);
-        assertThat(record.envelope().rules().getFirst().ruleId()).isEqualTo("nyc:afgb-4qw7:S-42");
+        assertThat(record.envelope().rules().getFirst().ruleId()).isEqualTo("nyc:nfid-uabd:S-42");
     }
 
     @Test

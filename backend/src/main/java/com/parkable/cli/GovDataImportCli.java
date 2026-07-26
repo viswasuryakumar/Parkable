@@ -50,7 +50,15 @@ public final class GovDataImportCli {
     private static List<GovDataSource> allSources() {
         return List.of(
                 new GovDataSource("nyc",
-                        new SocrataGovDataFeed("data.cityofnewyork.us", "afgb-4qw7"),
+                        // "Parking Regulation Locations and Signs" - the
+                        // 440k+-row dataset docs/schema.md's References
+                        // section documents. Was previously wired to
+                        // afgb-4qw7 (an unrelated 118-row press-parking
+                        // feed), which meant this source silently imported
+                        // nothing - found via live inspection, not a test,
+                        // since the fixture-based tests never touch a real
+                        // resource id.
+                        new SocrataGovDataFeed("data.cityofnewyork.us", "nfid-uabd"),
                         new NycSignMapper(), "New York City", "NY"),
                 new GovDataSource("chicago",
                         new SocrataGovDataFeed("data.cityofchicago.org", "u9xt-hiju"),
@@ -165,7 +173,7 @@ public final class GovDataImportCli {
     static ExtractionRecord toExtractionRecord(GovDataSource source, MappedRule mapped, JsonNode rawRecord, Instant now) {
         RuleDto dto = RuleFactory.toDto(mapped.rule());
         // The mapper's ruleId is already source-qualified and stable (e.g.
-        // "nyc:afgb-4qw7:S-42"), so reusing it as the extraction id too makes
+        // "nyc:nfid-uabd:S-42"), so reusing it as the extraction id too makes
         // a re-run resolve to the same stableRuleId (G4: idempotent re-import).
         String extractionId = dto.ruleId();
         ExtractionEnvelope envelope = new ExtractionEnvelope(
