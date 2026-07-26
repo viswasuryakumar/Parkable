@@ -8,6 +8,8 @@ import VerdictScreen from '../screens/VerdictScreen';
 import CameraScreen from '../screens/CameraScreen';
 import NearbyScreen from '../screens/NearbyScreen';
 import ReportScreen from '../screens/ReportScreen';
+import HistoryScreen from '../screens/HistoryScreen';
+import FavoritesScreen from '../screens/FavoritesScreen';
 import { useTheme } from '../theme/colors';
 import { RootStackParamList, TabParamList } from './types';
 
@@ -18,6 +20,8 @@ const TAB_ICONS: Record<keyof TabParamList, string> = {
   Check: '🅿️',
   Scan: '📷',
   Nearby: '📍',
+  History: '🕘',
+  Favorites: '⭐',
 };
 
 function Tabs() {
@@ -37,6 +41,8 @@ function Tabs() {
       <Tab.Screen name="Check" component={VerdictScreen} />
       <Tab.Screen name="Scan" component={CameraScreen} />
       <Tab.Screen name="Nearby" component={NearbyScreen} />
+      <Tab.Screen name="History" component={HistoryScreen} />
+      <Tab.Screen name="Favorites" component={FavoritesScreen} />
     </Tab.Navigator>
   );
 }

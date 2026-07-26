@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CheckResult, VerdictResponse, checkParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
 import { useTheme } from '../theme/colors';
+import { addFavorite } from '../utils/favorites';
 import type { RootStackParamList, TabParamList } from '../navigation/types';
 
 type Navigation = CompositeNavigationProp<
@@ -31,12 +32,14 @@ export default function VerdictScreen() {
   const [street, setStreet] = React.useState<string | null>(null);
   const [timerStarted, setTimerStarted] = React.useState(false);
   const [startingTimer, setStartingTimer] = React.useState(false);
+  const [favoriteSaved, setFavoriteSaved] = React.useState(false);
   const onScanRequested = React.useCallback(() => navigation.navigate('Scan'), [navigation]);
 
   const runCheck = React.useCallback(async () => {
     setState({ phase: 'locating' });
     setStreet(null);
     setTimerStarted(false);
+    setFavoriteSaved(false);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
@@ -123,6 +126,18 @@ export default function VerdictScreen() {
   }
 
   const verdict: VerdictResponse = state.result.verdict;
+  const { lat, lng } = state;
+
+  async function saveFavorite() {
+    await addFavorite({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      label: street ?? 'Saved spot',
+      lat,
+      lng,
+      savedAt: new Date().toISOString(),
+    });
+    setFavoriteSaved(true);
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -137,6 +152,11 @@ export default function VerdictScreen() {
             ? () => navigation.navigate('ReportSign', { ruleId: verdict.rule_id as string })
             : undefined
         }
+      />
+      <Button
+        title={favoriteSaved ? '★ Saved' : '☆ Save this spot'}
+        onPress={saveFavorite}
+        disabled={favoriteSaved}
       />
       <Button title="Check again" onPress={runCheck} />
       <Button title="Scan a sign instead" onPress={onScanRequested} />

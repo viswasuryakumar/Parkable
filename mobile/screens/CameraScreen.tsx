@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScanResult, VerdictResponse, checkParking, scanParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
 import { useTheme } from '../theme/colors';
+import { addHistoryEntry } from '../utils/history';
 import type { RootStackParamList } from '../navigation/types';
 
 type FlowState =
@@ -107,6 +108,15 @@ export default function CameraScreen() {
       } else {
         setTimerStarted(false);
         setState({ phase: 'verdict', verdict: result.verdict, lat: latitude, lng: longitude });
+        // Best-effort: history is a nicety, never something that should
+        // block or fail an otherwise-successful scan.
+        addHistoryEntry({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          scannedAt: new Date().toISOString(),
+          lat: latitude,
+          lng: longitude,
+          verdict: result.verdict,
+        }).catch(() => {});
       }
     } catch (error) {
       setState({

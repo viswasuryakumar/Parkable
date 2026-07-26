@@ -3,6 +3,8 @@ export type TabParamList = {
   Check: undefined;
   Scan: undefined;
   Nearby: undefined;
+  History: undefined;
+  Favorites: undefined;
 };
 
 /**
