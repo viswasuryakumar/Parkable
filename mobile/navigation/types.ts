@@ -13,6 +13,7 @@ export type TabParamList = {
  * rolled tab switcher this replaces couldn't express that at all.
  */
 export type RootStackParamList = {
+  Onboarding: undefined;
   Tabs: undefined;
   ReportSign: { ruleId: string };
   History: undefined;

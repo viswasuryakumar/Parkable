@@ -12,7 +12,9 @@ import ReportScreen from '../screens/ReportScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import FindMyCarScreen from '../screens/FindMyCarScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 import { useTheme } from '../theme/colors';
+import { hasSeenOnboarding } from '../utils/onboarding';
 import { RootStackParamList, TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -50,6 +52,12 @@ function Tabs() {
 export default function RootNavigator() {
   const scheme = useColorScheme();
   const theme = useTheme();
+  const [initialRoute, setInitialRoute] = React.useState<'Onboarding' | 'Tabs' | null>(null);
+
+  React.useEffect(() => {
+    hasSeenOnboarding().then((seen) => setInitialRoute(seen ? 'Tabs' : 'Onboarding'));
+  }, []);
+
   const navTheme = {
     ...(scheme === 'dark' ? DarkTheme : DefaultTheme),
     colors: {
@@ -62,9 +70,16 @@ export default function RootNavigator() {
     },
   };
 
+  // Briefly blank while the onboarding flag loads from storage, rather than
+  // flashing Tabs and then jumping to Onboarding a frame later.
+  if (initialRoute === null) {
+    return null;
+  }
+
   return (
     <NavigationContainer theme={navTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="Tabs" component={Tabs} />
         <Stack.Screen name="ReportSign" component={ReportScreen} options={{ presentation: 'modal' }} />
         <Stack.Screen name="History" component={HistoryScreen} options={{ headerShown: true, title: 'History' }} />
