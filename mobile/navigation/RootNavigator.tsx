@@ -7,6 +7,7 @@ import { useColorScheme } from 'react-native';
 import VerdictScreen from '../screens/VerdictScreen';
 import CameraScreen from '../screens/CameraScreen';
 import NearbyScreen from '../screens/NearbyScreen';
+import ReportScreen from '../screens/ReportScreen';
 import { useTheme } from '../theme/colors';
 import { RootStackParamList, TabParamList } from './types';
 
@@ -59,6 +60,7 @@ export default function RootNavigator() {
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Tabs" component={Tabs} />
+        <Stack.Screen name="ReportSign" component={ReportScreen} options={{ presentation: 'modal' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -5,6 +5,11 @@ export type VerdictResponse = {
   valid_until?: string | null;
   source?: string | null;
   trace?: string[];
+  // Only ever populated by /scan (a fresh extraction has both in hand);
+  // /check re-reads already-stored rules and has neither, so both are
+  // always absent there rather than fabricated.
+  photo_url?: string | null;
+  confidence?: number | null;
 };
 
 // GET /check answers 404 with this body when no rule data exists within 25m.
@@ -111,4 +116,16 @@ export async function nearbyParking(lat: number, lng: number): Promise<NearbyRul
   // Server wraps the list as {"rules": [...]} (plan §3), not a bare array.
   const body = (await response.json()) as { rules: NearbyRule[] };
   return body.rules;
+}
+
+export async function reportRule(ruleId: string, reason: string, deviceId: string): Promise<void> {
+  const response = await fetch(`${buildBaseUrl()}/report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rule_id: ruleId, reason, device_id: deviceId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Report request failed: ${response.status}`);
+  }
 }

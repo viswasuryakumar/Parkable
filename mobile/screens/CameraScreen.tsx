@@ -2,9 +2,12 @@ import React from 'react';
 import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScanResult, VerdictResponse, checkParking, scanParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
 import { useTheme } from '../theme/colors';
+import type { RootStackParamList } from '../navigation/types';
 
 type FlowState =
   | { phase: 'preview' }
@@ -49,6 +52,7 @@ function isMobileWebBrowser(): boolean {
 
 export default function CameraScreen() {
   const theme = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [state, setState] = React.useState<FlowState>({ phase: 'preview' });
   const [timerStarted, setTimerStarted] = React.useState(false);
@@ -167,6 +171,11 @@ export default function CameraScreen() {
           onStartTimer={startTimer}
           timerStarted={timerStarted}
           startingTimer={startingTimer}
+          onReport={
+            state.verdict.rule_id
+              ? () => navigation.navigate('ReportSign', { ruleId: state.verdict.rule_id as string })
+              : undefined
+          }
         />
         <Button title="Scan another sign" onPress={() => setState({ phase: 'preview' })} />
       </View>

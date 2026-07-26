@@ -1,12 +1,18 @@
 import React from 'react';
 import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
-import { useNavigation } from '@react-navigation/native';
+import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CheckResult, VerdictResponse, checkParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
 import { useTheme } from '../theme/colors';
-import type { TabParamList } from '../navigation/types';
+import type { RootStackParamList, TabParamList } from '../navigation/types';
+
+type Navigation = CompositeNavigationProp<
+  BottomTabNavigationProp<TabParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 type ScreenState =
   | { phase: 'locating' }
@@ -19,7 +25,7 @@ type ScreenState =
 const REVERSE_GEOCODE_SUPPORTED = Platform.OS !== 'web';
 
 export default function VerdictScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<TabParamList>>();
+  const navigation = useNavigation<Navigation>();
   const theme = useTheme();
   const [state, setState] = React.useState<ScreenState>({ phase: 'locating' });
   const [street, setStreet] = React.useState<string | null>(null);
@@ -126,6 +132,11 @@ export default function VerdictScreen() {
         onStartTimer={startTimer}
         timerStarted={timerStarted}
         startingTimer={startingTimer}
+        onReport={
+          verdict.rule_id
+            ? () => navigation.navigate('ReportSign', { ruleId: verdict.rule_id as string })
+            : undefined
+        }
       />
       <Button title="Check again" onPress={runCheck} />
       <Button title="Scan a sign instead" onPress={onScanRequested} />

@@ -12,4 +12,5 @@ export type TabParamList = {
  */
 export type RootStackParamList = {
   Tabs: undefined;
+  ReportSign: { ruleId: string };
 };

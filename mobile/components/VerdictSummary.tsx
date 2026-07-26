@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { VerdictResponse } from '../services/api';
 import { useTheme, VERDICT_COLOR_KEYS } from '../theme/colors';
 
@@ -47,6 +47,8 @@ type VerdictSummaryProps = {
   onStartTimer?: () => Promise<void>;
   timerStarted?: boolean;
   startingTimer?: boolean;
+  /** Shown near the headline; lets the driver flag "this looks wrong/outdated." */
+  onReport?: () => void;
 };
 
 /**
@@ -59,9 +61,11 @@ export default function VerdictSummary({
   onStartTimer,
   timerStarted = false,
   startingTimer = false,
+  onReport,
 }: VerdictSummaryProps) {
   const now = useNow();
   const theme = useTheme();
+  const [traceExpanded, setTraceExpanded] = React.useState(false);
   const colorKey = VERDICT_COLOR_KEYS[verdict.verdict];
   const color = colorKey ? theme[colorKey] : theme.text;
   const validUntil = verdict.valid_until ? Date.parse(verdict.valid_until) : null;
@@ -71,9 +75,19 @@ export default function VerdictSummary({
 
   return (
     <View style={styles.container}>
+      {verdict.photo_url ? (
+        <Image source={{ uri: verdict.photo_url }} style={styles.photo} resizeMode="cover" />
+      ) : null}
       <Text style={[styles.verdict, { color }]}>
         {VERDICT_HEADLINES[verdict.verdict] ?? verdict.verdict}
       </Text>
+      {typeof verdict.confidence === 'number' ? (
+        <View style={[styles.confidenceBadge, { backgroundColor: theme.card }]}>
+          <Text style={[styles.confidenceText, { color: theme.textMuted }]}>
+            {Math.round(verdict.confidence * 100)}% confident read
+          </Text>
+        </View>
+      ) : null}
       {verdict.reason ? (
         <Text style={[styles.reason, { color: theme.textMuted }]}>{verdict.reason}</Text>
       ) : null}
@@ -114,6 +128,31 @@ export default function VerdictSummary({
             : 'Source: community sign scan'}
         </Text>
       ) : null}
+
+      {verdict.trace && verdict.trace.length > 0 ? (
+        <View style={styles.traceContainer}>
+          <Pressable onPress={() => setTraceExpanded((prev) => !prev)} hitSlop={8}>
+            <Text style={[styles.traceToggle, { color: theme.accent }]}>
+              {traceExpanded ? 'Hide reasoning ▲' : 'Why? ▼'}
+            </Text>
+          </Pressable>
+          {traceExpanded ? (
+            <View style={[styles.traceBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              {verdict.trace.map((line, index) => (
+                <Text key={index} style={[styles.traceLine, { color: theme.textMuted }]}>
+                  {line}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {onReport ? (
+        <Pressable onPress={onReport} hitSlop={8}>
+          <Text style={[styles.reportLink, { color: theme.textMuted }]}>Report an issue with this sign</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -146,5 +185,43 @@ const styles = StyleSheet.create({
   },
   source: {
     fontSize: 13,
+  },
+  photo: {
+    width: 220,
+    height: 160,
+    borderRadius: 12,
+  },
+  confidenceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  confidenceText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  traceContainer: {
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
+  },
+  traceToggle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  traceBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    gap: 4,
+    width: '100%',
+  },
+  traceLine: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  reportLink: {
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
 });
