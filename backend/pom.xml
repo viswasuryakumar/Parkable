@@ -58,7 +58,15 @@
       <artifactId>postgresql</artifactId>
       <version>42.7.4</version>
     </dependency>
-    <!-- Phase 2.5: NYC's afgb-4qw7 gov dataset only publishes NY State Plane
+    <!-- ScanHandler: uploads scan photos to S3 and returns a presigned GET
+         URL for thumbnail display (PhotosBucket blocks all public access -
+         see infra/template.yaml - so a plain URL would never resolve). -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>2.46.7</version>
+    </dependency>
+    <!-- Phase 2.5: NYC's nfid-uabd gov dataset only publishes NY State Plane
          (EPSG:2263, US survey feet) coordinates, not WGS84 lat/lng. Proj4J is
          a small, well-tested pure-Java CRS transform library - hand-rolling
          the Transverse Mercator math ourselves risks a silently-wrong offset

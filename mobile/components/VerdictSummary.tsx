@@ -1,12 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
 import { VerdictResponse } from '../services/api';
-
-const VERDICT_COLORS: Record<string, string> = {
-  PARKABLE: '#16a34a',
-  NOT_PARKABLE: '#dc2626',
-  DEPENDS: '#d97706',
-};
+import { useTheme, VERDICT_COLOR_KEYS } from '../theme/colors';
 
 const VERDICT_HEADLINES: Record<string, string> = {
   PARKABLE: 'You can park here',
@@ -66,7 +61,9 @@ export default function VerdictSummary({
   startingTimer = false,
 }: VerdictSummaryProps) {
   const now = useNow();
-  const color = VERDICT_COLORS[verdict.verdict] ?? '#111827';
+  const theme = useTheme();
+  const colorKey = VERDICT_COLOR_KEYS[verdict.verdict];
+  const color = colorKey ? theme[colorKey] : theme.text;
   const validUntil = verdict.valid_until ? Date.parse(verdict.valid_until) : null;
   const msRemaining = validUntil === null ? null : validUntil - now;
   const isTimeLimited = verdict.verdict === 'PARKABLE' && validUntil !== null;
@@ -77,11 +74,13 @@ export default function VerdictSummary({
       <Text style={[styles.verdict, { color }]}>
         {VERDICT_HEADLINES[verdict.verdict] ?? verdict.verdict}
       </Text>
-      {verdict.reason ? <Text style={styles.reason}>{verdict.reason}</Text> : null}
+      {verdict.reason ? (
+        <Text style={[styles.reason, { color: theme.textMuted }]}>{verdict.reason}</Text>
+      ) : null}
 
       {awaitingTimerStart ? (
         <View style={styles.timerPrompt}>
-          <Text style={styles.note}>
+          <Text style={[styles.note, { color: theme.textMuted }]}>
             Tap Start the moment you actually park — the countdown is timed from then, not from
             now.
           </Text>
@@ -94,7 +93,7 @@ export default function VerdictSummary({
       ) : null}
 
       {!awaitingTimerStart && msRemaining !== null && msRemaining > 0 ? (
-        <Text style={styles.countdown}>
+        <Text style={[styles.countdown, { color: theme.text }]}>
           {verdict.verdict === 'PARKABLE'
             ? `Move your car within ${formatCountdown(msRemaining)}`
             : verdict.verdict === 'NOT_PARKABLE'
@@ -103,11 +102,13 @@ export default function VerdictSummary({
         </Text>
       ) : null}
       {!awaitingTimerStart && msRemaining !== null && msRemaining <= 0 ? (
-        <Text style={styles.countdown}>This verdict may be stale — check again.</Text>
+        <Text style={[styles.countdown, { color: theme.text }]}>
+          This verdict may be stale — check again.
+        </Text>
       ) : null}
 
       {verdict.source ? (
-        <Text style={styles.source}>
+        <Text style={[styles.source, { color: theme.textMuted }]}>
           {verdict.source === 'gov_data'
             ? 'Source: official city data'
             : 'Source: community sign scan'}
@@ -129,7 +130,6 @@ const styles = StyleSheet.create({
   },
   reason: {
     textAlign: 'center',
-    color: '#4b5563',
     fontSize: 16,
   },
   timerPrompt: {
@@ -138,16 +138,13 @@ const styles = StyleSheet.create({
   },
   note: {
     textAlign: 'center',
-    color: '#6b7280',
     fontSize: 13,
   },
   countdown: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
   },
   source: {
-    color: '#6b7280',
     fontSize: 13,
   },
 });

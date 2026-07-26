@@ -57,22 +57,38 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
     private final RuleRepository repository;
     private final RulesEngine engine;
     private final Clock clock;
+    private final PhotoUploader photoUploader;
 
     /** No-arg constructor AWS Lambda actually invokes in production; wires from env vars (D4). */
     public ScanHandler() {
         this(ExtractorFactory.extractor(EnvConfig.fromEnvironment()),
                 StorageStack.from(EnvConfig.fromEnvironment()).repository(),
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                S3PhotoUploader.fromEnvironment());
     }
 
     public ScanHandler(VisionExtractor delegate, RuleRepository repository, Clock clock) {
+        this(delegate, repository, clock, (bytes, mediaType, key) -> Optional.empty());
+    }
+
+    public ScanHandler(VisionExtractor delegate, RuleRepository repository, Clock clock, PhotoUploader photoUploader) {
         this.extractor = new ValidatingRetryingVisionExtractor(
                 Objects.requireNonNull(delegate, "delegate"),
                 new RuleJsonSchemaValidator(),
                 new SemanticRuleValidator());
         this.repository = Objects.requireNonNull(repository, "repository");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.photoUploader = Objects.requireNonNull(photoUploader, "photoUploader");
         this.engine = new RulesEngine(new TemporalRuleEvaluator(new UsFederalHolidayCalendar()));
+    }
+
+    /**
+     * Uploads a scan photo and returns a way to view it, or empty if photo
+     * storage isn't configured/fails - a thumbnail is a nice-to-have, never
+     * something that should fail an otherwise-successful scan.
+     */
+    interface PhotoUploader {
+        Optional<String> upload(byte[] photoBytes, String mediaType, String key);
     }
 
     @Override
@@ -113,14 +129,33 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
                     Optional.of(new ExtractionRecord.GpsCoordinates(request.latitude(), request.longitude())),
                     success.metadata().extractedAt()));
 
+            Optional<String> photoUrl = uploadPhotoSafely(request, success);
+            Optional<Double> confidence = Optional.ofNullable(success.envelope().confidence());
+
             VerdictResult verdict = engine.evaluate(rules, request.at(), request.zone(), request.side());
             List<StoredRule> stored = rules.stream()
                     .map(rule -> new StoredRule(rule, "camera_scan", success.metadata().parserVersion(),
                             request.latitude(), request.longitude(), success.envelope().extractionId()))
                     .toList();
-            return Responses.verdict(verdict, stored);
+            return Responses.verdict(verdict, stored, photoUrl, confidence);
         } catch (QueryParams.BadRequestException e) {
             return Responses.badRequest(e.getMessage());
+        }
+    }
+
+    /**
+     * A thumbnail is a nice-to-have; a broken or misbehaving uploader (one
+     * that violates {@link PhotoUploader}'s documented contract and throws
+     * instead of returning empty) must still never fail an otherwise-
+     * successful scan - enforced here rather than trusted to every
+     * implementation.
+     */
+    private Optional<String> uploadPhotoSafely(ScanRequest request, ExtractionResult.Success success) {
+        try {
+            return photoUploader.upload(
+                    request.image().bytes(), request.image().mediaType(), success.metadata().photoReference());
+        } catch (RuntimeException e) {
+            return Optional.empty();
         }
     }
 

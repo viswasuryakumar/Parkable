@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import { ScanResult, VerdictResponse, checkParking, scanParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
+import { useTheme } from '../theme/colors';
 
 type FlowState =
   | { phase: 'preview' }
@@ -47,6 +48,7 @@ function isMobileWebBrowser(): boolean {
 }
 
 export default function CameraScreen() {
+  const theme = useTheme();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [state, setState] = React.useState<FlowState>({ phase: 'preview' });
   const [timerStarted, setTimerStarted] = React.useState(false);
@@ -132,14 +134,14 @@ export default function CameraScreen() {
 
   if (!cameraPermission?.granted) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.title}>Camera access is required</Text>
-        <Text style={styles.note}>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>Camera access is required</Text>
+        <Text style={[styles.note, { color: theme.textMuted }]}>
           Parkable reads the parking sign from your photo. Nothing is uploaded until you tap
           capture.
         </Text>
         {cameraPermission?.canAskAgain === false ? (
-          <Text style={styles.note}>Enable camera access in your device settings.</Text>
+          <Text style={[styles.note, { color: theme.textMuted }]}>Enable camera access in your device settings.</Text>
         ) : (
           <Button title="Grant camera access" onPress={requestCameraPermission} />
         )}
@@ -149,17 +151,17 @@ export default function CameraScreen() {
 
   if (state.phase === 'uploading') {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" />
-        <Text style={styles.title}>Reading the sign…</Text>
-        <Text style={styles.note}>Uploading your photo and extracting the rules.</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Reading the sign…</Text>
+        <Text style={[styles.note, { color: theme.textMuted }]}>Uploading your photo and extracting the rules.</Text>
       </View>
     );
   }
 
   if (state.phase === 'verdict') {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
         <VerdictSummary
           verdict={state.verdict}
           onStartTimer={startTimer}
@@ -173,10 +175,10 @@ export default function CameraScreen() {
 
   if (state.phase === 'retake') {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.title}>Please retake the photo</Text>
-        <Text style={styles.note}>{state.message}</Text>
-        <Text style={styles.note}>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>Please retake the photo</Text>
+        <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
+        <Text style={[styles.note, { color: theme.textMuted }]}>
           Get closer, avoid glare, and fit the whole sign in the frame.
         </Text>
         <Button title="Retake" onPress={() => setState({ phase: 'preview' })} />
@@ -186,9 +188,9 @@ export default function CameraScreen() {
 
   if (state.phase === 'error') {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.note}>{state.message}</Text>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>Something went wrong</Text>
+        <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
         <Button title="Try again" onPress={() => setState({ phase: 'preview' })} />
       </View>
     );
@@ -208,7 +210,7 @@ export default function CameraScreen() {
         <CameraView ref={cameraRef} style={styles.cameraFill} facing="back" />
       </View>
       <View style={styles.controls}>
-        <Text style={styles.note}>Fit the whole parking sign in the frame.</Text>
+        <Text style={[styles.note, { color: theme.textMuted }]}>Fit the whole parking sign in the frame.</Text>
         <Button title="Capture" onPress={handleCapture} />
       </View>
     </View>
@@ -244,7 +246,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   note: {
-    color: '#6b7280',
     textAlign: 'center',
   },
 });

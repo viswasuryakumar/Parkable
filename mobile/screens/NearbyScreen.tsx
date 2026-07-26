@@ -12,6 +12,7 @@ import {
 import * as Location from 'expo-location';
 import { NearbyRule, nearbyParking } from '../services/api';
 import { describeLocation } from '../utils/geo';
+import { useTheme } from '../theme/colors';
 
 type ScreenState =
   | { phase: 'loading' }
@@ -82,6 +83,7 @@ function groupBySign(rules: NearbyRule[]): SignGroup[] {
 }
 
 export default function NearbyScreen() {
+  const theme = useTheme();
   const [state, setState] = React.useState<ScreenState>({ phase: 'loading' });
   const [streetNames, setStreetNames] = React.useState<Record<string, string>>({});
   const [activeScanIndex, setActiveScanIndex] = React.useState<Record<string, number>>({});
@@ -135,18 +137,18 @@ export default function NearbyScreen() {
 
   if (state.phase === 'loading') {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" />
-        <Text style={styles.title}>Finding rules near you…</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Finding rules near you…</Text>
       </View>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.note}>{state.message}</Text>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>Something went wrong</Text>
+        <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
         <Button title="Try again" onPress={load} />
       </View>
     );
@@ -154,9 +156,9 @@ export default function NearbyScreen() {
 
   if (state.groups.length === 0) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.title}>No rules nearby</Text>
-        <Text style={styles.note}>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>No rules nearby</Text>
+        <Text style={[styles.note, { color: theme.textMuted }]}>
           No parking rules are recorded within a kilometre of you yet. Scan a sign to add the
           first one.
         </Text>
@@ -173,8 +175,8 @@ export default function NearbyScreen() {
   const totalSigns = state.groups.reduce((sum, g) => sum + g.scans.length, 0);
 
   return (
-    <View style={styles.listContainer}>
-      <Text style={styles.heading}>
+    <View style={[styles.listContainer, { backgroundColor: theme.background }]}>
+      <Text style={[styles.heading, { color: theme.text }]}>
         {totalRules} rule{totalRules === 1 ? '' : 's'} on {totalSigns} sign
         {totalSigns === 1 ? '' : 's'} near you
       </Text>
@@ -195,21 +197,25 @@ export default function NearbyScreen() {
               [group.key]: Math.max(0, Math.min(group.scans.length - 1, scanIndex + delta)),
             }));
           return (
-            <View style={styles.signCard}>
-              <View style={styles.signPost} />
+            <View style={[styles.signCard, { backgroundColor: theme.card }]}>
+              <View style={[styles.signPost, { backgroundColor: theme.textMuted }]} />
               <View style={styles.signBody}>
-                <Text style={styles.cardLocation}>{location}</Text>
+                <Text style={[styles.cardLocation, { color: theme.accent }]}>{location}</Text>
                 {hasMultipleSigns && (
                   <View style={styles.carouselHeader}>
                     <Pressable
                       onPress={() => moveScan(-1)}
                       disabled={scanIndex === 0}
                       hitSlop={8}
-                      style={[styles.carouselArrow, scanIndex === 0 && styles.carouselArrowDisabled]}
+                      style={[
+                        styles.carouselArrow,
+                        { backgroundColor: theme.border },
+                        scanIndex === 0 && styles.carouselArrowDisabled,
+                      ]}
                     >
-                      <Text style={styles.carouselArrowText}>‹</Text>
+                      <Text style={[styles.carouselArrowText, { color: theme.text }]}>‹</Text>
                     </Pressable>
-                    <Text style={styles.carouselLabel}>
+                    <Text style={[styles.carouselLabel, { color: theme.textMuted }]}>
                       Sign {scanIndex + 1} of {group.scans.length} here
                     </Text>
                     <Pressable
@@ -218,25 +224,29 @@ export default function NearbyScreen() {
                       hitSlop={8}
                       style={[
                         styles.carouselArrow,
+                        { backgroundColor: theme.border },
                         scanIndex === group.scans.length - 1 && styles.carouselArrowDisabled,
                       ]}
                     >
-                      <Text style={styles.carouselArrowText}>›</Text>
+                      <Text style={[styles.carouselArrowText, { color: theme.text }]}>›</Text>
                     </Pressable>
                   </View>
                 )}
                 {activeScan.rules.map((rule, index) => (
                   <View
                     key={rule.rule_id}
-                    style={index > 0 ? styles.rulePanelDivider : undefined}
+                    style={[
+                      index > 0 && styles.rulePanelDivider,
+                      index > 0 && { borderTopColor: theme.border },
+                    ]}
                   >
-                    <Text style={styles.cardTitle}>{rule.description}</Text>
-                    <Text style={styles.cardSchedule}>
+                    <Text style={[styles.cardTitle, { color: theme.text }]}>{rule.description}</Text>
+                    <Text style={[styles.cardSchedule, { color: theme.textMuted }]}>
                       {rule.days} · {rule.hours}
                     </Text>
                   </View>
                 ))}
-                <Text style={styles.cardMeta}>
+                <Text style={[styles.cardMeta, { color: theme.textMuted }]}>
                   {group.source === 'gov_data' ? 'Official city data' : 'Community sign scan'}
                 </Text>
               </View>
@@ -275,7 +285,6 @@ const styles = StyleSheet.create({
   // separate entries.
   signCard: {
     flexDirection: 'row',
-    backgroundColor: '#f3f4f6',
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -289,7 +298,6 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#e5e7eb',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -299,17 +307,14 @@ const styles = StyleSheet.create({
   carouselArrowText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#374151',
     lineHeight: 18,
   },
   carouselLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6b7280',
   },
   signPost: {
     width: 6,
-    backgroundColor: '#9ca3af',
   },
   signBody: {
     flex: 1,
@@ -318,27 +323,22 @@ const styles = StyleSheet.create({
   },
   rulePanelDivider: {
     borderTopWidth: 1,
-    borderTopColor: '#d1d5db',
     marginTop: 6,
     paddingTop: 6,
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
   },
   cardSchedule: {
     fontSize: 13,
-    color: '#374151',
   },
   cardLocation: {
     fontSize: 13,
-    color: '#2563eb',
     fontWeight: '500',
   },
   cardMeta: {
     fontSize: 12,
-    color: '#6b7280',
     marginTop: 4,
   },
   title: {
@@ -347,7 +347,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   note: {
-    color: '#6b7280',
     textAlign: 'center',
   },
 });

@@ -14,6 +14,20 @@ CREATE TABLE IF NOT EXISTS rules (
 CREATE INDEX IF NOT EXISTS rules_location_gist_idx
     ON rules USING GIST (location);
 
+-- User-flagged "this rule looks wrong/outdated" reports. Purely a log for
+-- later human review - a report never automatically changes or removes a
+-- rule (a bad-faith report must not be able to take down a real one).
+CREATE TABLE IF NOT EXISTS rule_reports (
+    id UUID PRIMARY KEY,
+    rule_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    reported_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS rule_reports_rule_id_idx
+    ON rule_reports (rule_id);
+
 -- Find rules within a 25 metre radius. Supply longitude before latitude:
 -- SELECT id, rule, source, parser_version, created_at
 -- FROM rules

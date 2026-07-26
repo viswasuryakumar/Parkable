@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * JSON response shaping for the API contract in
@@ -30,6 +31,19 @@ final class Responses {
     private Responses() {}
 
     static APIGatewayProxyResponseEvent verdict(VerdictResult result, List<StoredRule> stored) {
+        return verdict(result, stored, Optional.empty(), Optional.empty());
+    }
+
+    /**
+     * Scan-only extras: a photo thumbnail and the extraction's own
+     * confidence score both only exist at scan time (photo bytes are in
+     * hand; confidence is the LLM's self-reported read quality on THIS
+     * extraction) - /check re-reads already-stored rules later and has
+     * neither, so those callers use the simpler two-arg overload instead of
+     * fabricating values that were never really there.
+     */
+    static APIGatewayProxyResponseEvent verdict(
+            VerdictResult result, List<StoredRule> stored, Optional<String> photoUrl, Optional<Double> confidence) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("verdict", result.verdict().name());
         body.put("reason", result.triggeringRule().map(m -> m.reason()).orElse(null));
@@ -37,6 +51,8 @@ final class Responses {
         body.put("valid_until", result.validUntil().map(Instant::toString).orElse(null));
         body.put("source", sourceOf(result, stored));
         body.put("trace", result.trace());
+        body.put("photo_url", photoUrl.orElse(null));
+        body.put("confidence", confidence.orElse(null));
         return json(200, body);
     }
 

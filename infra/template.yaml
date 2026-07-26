@@ -160,6 +160,33 @@ Resources:
             Path: /scan
             Method: post
 
+  ReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: parkable-report
+      Runtime: java21
+      Timeout: 30
+      MemorySize: 512
+      CodeUri: ../backend/target/parkable-cli.jar
+      Handler: com.parkable.lambda.ReportHandler::handleRequest
+      Environment:
+        Variables:
+          PARKABLE_DB_URL: !Ref DatabaseUrlParameter
+      Policies:
+        - Statement:
+            - Sid: ReadParameters
+              Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: '*'
+      Events:
+        ReportRoute:
+          Type: Api
+          Properties:
+            Path: /report
+            Method: post
+
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint for Parkable

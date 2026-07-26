@@ -2,6 +2,33 @@
   "expo": {
     "name": "Parkable",
     "slug": "parkable",
-    "plugins": ["expo-asset"]
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "dev.parkable.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Parkable checks parking rules at your current location and tags scanned signs with where they stand.",
+        "NSCameraUsageDescription": "Parkable reads the parking sign in your photo. Nothing is uploaded until you tap capture."
+      }
+    },
+    "android": {
+      "package": "dev.parkable.app",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "CAMERA"]
+    },
+    "plugins": [
+      "expo-asset",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Parkable checks parking rules at your current location and tags scanned signs with where they stand."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Parkable reads the parking sign in your photo. Nothing is uploaded until you tap capture."
+        }
+      ],
+      "expo-notifications"
+    ]
   }
 }

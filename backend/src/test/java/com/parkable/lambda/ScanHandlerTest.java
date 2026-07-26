@@ -66,6 +66,12 @@ class ScanHandlerTest {
         JsonNode json = MAPPER.readTree(response.getBody());
         assertThat(json.get("verdict").asText()).isEqualTo("NOT_PARKABLE");
         assertThat(json.get("source").asText()).isEqualTo("camera_scan");
+        // The fixture's own confidence (0.97) - always available at scan
+        // time, unlike /check's later re-reads of already-stored rules.
+        assertThat(json.get("confidence").asDouble()).isEqualTo(0.97);
+        // No PhotoUploader wired (3-arg constructor default) - a missing
+        // thumbnail must never fail the scan itself.
+        assertThat(json.get("photo_url").isNull()).isTrue();
 
         // Reproducibility contract: envelope + GPS + parser version stored.
         assertThat(repository.findAll()).hasSize(1);
@@ -141,6 +147,41 @@ class ScanHandlerTest {
                 e.parserVersion(), e.ingestionTimestamp(), e.extractionMethod(), e.confidence(),
                 e.coverageCompleteness(), e.notes(), e.rawText(), e.rules());
         return new ExtractionResult.Success(withId, original.rawJson(), original.metadata());
+    }
+
+    @Test
+    void photoUrlFromAnInjectedUploaderSurfacesInTheResponse() throws Exception {
+        InMemoryRuleRepository repository = new InMemoryRuleRepository();
+        ScanHandler.PhotoUploader fakeUploader =
+                (bytes, mediaType, key) -> java.util.Optional.of("https://photos.example/" + key);
+        ScanHandler handler = new ScanHandler(image -> validSuccess(), repository, FIXED_CLOCK, fakeUploader);
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(
+                new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+
+        JsonNode json = MAPPER.readTree(response.getBody());
+        assertThat(json.get("photo_url").asText()).startsWith("https://photos.example/");
+    }
+
+    @Test
+    void aFailingPhotoUploadNeverFailsTheScanItself() throws Exception {
+        // A thumbnail is a nice-to-have; a misbehaving uploader that
+        // violates PhotoUploader's contract (throws instead of returning
+        // empty) must still never take down an otherwise-successful scan.
+        InMemoryRuleRepository repository = new InMemoryRuleRepository();
+        ScanHandler.PhotoUploader throwingUploader = (bytes, mediaType, key) -> {
+            throw new RuntimeException("S3 is down");
+        };
+        ScanHandler handler =
+                new ScanHandler(image -> validSuccess(), repository, FIXED_CLOCK, throwingUploader);
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(
+                new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(200);
+        JsonNode json = MAPPER.readTree(response.getBody());
+        assertThat(json.get("verdict").asText()).isEqualTo("NOT_PARKABLE");
+        assertThat(json.get("photo_url").isNull()).isTrue();
     }
 
     @Test
