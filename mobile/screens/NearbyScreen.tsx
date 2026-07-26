@@ -13,6 +13,11 @@ import * as Location from 'expo-location';
 import { NearbyRule, nearbyParking } from '../services/api';
 import { describeLocation } from '../utils/geo';
 import { useTheme } from '../theme/colors';
+import NearbyMap from '../components/NearbyMap';
+
+// react-native-maps has no web renderer - the toggle itself only exists on
+// native (NearbyMap.web.tsx is a safe no-op if it were ever reached anyway).
+const MAP_VIEW_SUPPORTED = Platform.OS !== 'web';
 
 type ScreenState =
   | { phase: 'loading' }
@@ -87,6 +92,7 @@ export default function NearbyScreen() {
   const [state, setState] = React.useState<ScreenState>({ phase: 'loading' });
   const [streetNames, setStreetNames] = React.useState<Record<string, string>>({});
   const [activeScanIndex, setActiveScanIndex] = React.useState<Record<string, number>>({});
+  const [viewMode, setViewMode] = React.useState<'list' | 'map'>('list');
 
   const load = React.useCallback(async () => {
     setState({ phase: 'loading' });
@@ -176,10 +182,32 @@ export default function NearbyScreen() {
 
   return (
     <View style={[styles.listContainer, { backgroundColor: theme.background }]}>
-      <Text style={[styles.heading, { color: theme.text }]}>
-        {totalRules} rule{totalRules === 1 ? '' : 's'} on {totalSigns} sign
-        {totalSigns === 1 ? '' : 's'} near you
-      </Text>
+      <View style={styles.headingRow}>
+        <Text style={[styles.heading, { color: theme.text }]}>
+          {totalRules} rule{totalRules === 1 ? '' : 's'} on {totalSigns} sign
+          {totalSigns === 1 ? '' : 's'} near you
+        </Text>
+        {MAP_VIEW_SUPPORTED ? (
+          <Button
+            title={viewMode === 'list' ? '🗺️ Map' : '☰ List'}
+            onPress={() => setViewMode((prev) => (prev === 'list' ? 'map' : 'list'))}
+          />
+        ) : null}
+      </View>
+      {viewMode === 'map' ? (
+        <NearbyMap
+          userLat={userLat}
+          userLng={userLng}
+          groups={state.groups.map((group) => ({
+            key: group.key,
+            lat: group.lat,
+            lng: group.lng,
+            description: group.scans
+              .flatMap((scan) => scan.rules.map((rule) => rule.description))
+              .join(' · '),
+          }))}
+        />
+      ) : (
       <FlatList
         data={state.groups}
         keyExtractor={(group) => group.key}
@@ -255,6 +283,7 @@ export default function NearbyScreen() {
         }}
         contentContainerStyle={styles.listContent}
       />
+      )}
       <Button title="Refresh" onPress={load} />
     </View>
   );
@@ -273,9 +302,15 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
+  headingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   heading: {
     fontSize: 20,
     fontWeight: '600',
+    flexShrink: 1,
   },
   listContent: {
     gap: 8,
