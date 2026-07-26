@@ -3,6 +3,7 @@ export type TabParamList = {
   Check: undefined;
   Scan: undefined;
   Nearby: undefined;
+  FindMyCar: undefined;
   History: undefined;
   Favorites: undefined;
 };

@@ -28,6 +28,19 @@ export function bearingLabel(
   return COMPASS_POINTS[Math.round(bearing / 45) % 8];
 }
 
+const EARTH_RADIUS_METERS = 6_371_000;
+
+/** Haversine distance in metres - used client-side where the server hasn't already computed one (e.g. Find My Car). */
+export function metersBetween(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return EARTH_RADIUS_METERS * c;
+}
+
 /** "82m" below 1km, "1.2km" at/above — matches how people actually talk about distance. */
 export function formatDistance(meters: number): string {
   if (meters < 1000) {

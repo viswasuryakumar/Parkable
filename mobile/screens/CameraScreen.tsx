@@ -8,6 +8,7 @@ import { ScanResult, VerdictResponse, checkParking, scanParking } from '../servi
 import VerdictSummary from '../components/VerdictSummary';
 import { useTheme } from '../theme/colors';
 import { addHistoryEntry } from '../utils/history';
+import { startParkingSession } from '../utils/parkingSession';
 import type { RootStackParamList } from '../navigation/types';
 
 type FlowState =
@@ -138,6 +139,7 @@ export default function CameraScreen() {
       if (result.kind === 'verdict') {
         setState({ phase: 'verdict', verdict: result.verdict, lat: state.lat, lng: state.lng });
         setTimerStarted(true);
+        startParkingSession(state.lat, state.lng, result.verdict.valid_until ?? null).catch(() => {});
       }
     } catch {
       // Leave the prior verdict on screen; the button just stays available to retry.

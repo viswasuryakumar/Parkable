@@ -8,6 +8,7 @@ import { CheckResult, VerdictResponse, checkParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
 import { useTheme } from '../theme/colors';
 import { addFavorite } from '../utils/favorites';
+import { startParkingSession } from '../utils/parkingSession';
 import type { RootStackParamList, TabParamList } from '../navigation/types';
 
 type Navigation = CompositeNavigationProp<
@@ -85,6 +86,9 @@ export default function VerdictScreen() {
       const result = await checkParking(state.lat, state.lng);
       setState({ phase: 'result', result, lat: state.lat, lng: state.lng });
       setTimerStarted(true);
+      if (result.kind === 'verdict') {
+        startParkingSession(state.lat, state.lng, result.verdict.valid_until ?? null).catch(() => {});
+      }
     } catch {
       // Leave the prior verdict on screen; the button just stays available to retry.
     } finally {

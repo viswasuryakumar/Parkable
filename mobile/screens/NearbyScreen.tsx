@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Button,
   FlatList,
   Platform,
@@ -14,10 +15,38 @@ import { NearbyRule, nearbyParking } from '../services/api';
 import { describeLocation } from '../utils/geo';
 import { useTheme } from '../theme/colors';
 import NearbyMap from '../components/NearbyMap';
+import { parseDaysLabel, parseStartTime, nextOccurrence } from '../utils/schedule';
+import { scheduleNotification } from '../utils/notifications';
 
 // react-native-maps has no web renderer - the toggle itself only exists on
 // native (NearbyMap.web.tsx is a safe no-op if it were ever reached anyway).
 const MAP_VIEW_SUPPORTED = Platform.OS !== 'web';
+// Notifications need a dev-client build and don't fire on web at all.
+const REMINDERS_SUPPORTED = Platform.OS !== 'web';
+const REMINDER_LEAD_MS = 10 * 60 * 60_000; // ~night before a morning restriction
+
+async function remindMeAboutRule(rule: NearbyRule): Promise<void> {
+  const dayIndices = parseDaysLabel(rule.days);
+  const start = parseStartTime(rule.hours);
+  if (!dayIndices || !start) {
+    Alert.alert("Can't set a reminder", "This rule's schedule isn't specific enough to remind you about.");
+    return;
+  }
+  const occurrence = nextOccurrence(dayIndices, start.hour, start.minute);
+  if (!occurrence) {
+    Alert.alert("Can't set a reminder", 'Could not figure out when this rule next applies.');
+    return;
+  }
+  const fireAt = new Date(occurrence.getTime() - REMINDER_LEAD_MS);
+  const id = await scheduleNotification(
+    'Move your car',
+    `${rule.description} starts ${occurrence.toLocaleString()}.`,
+    fireAt
+  );
+  Alert.alert(id ? 'Reminder set' : "Couldn't set reminder", id
+    ? `We'll remind you before ${occurrence.toLocaleString()}.`
+    : 'Notification permission may be needed - check your device settings.');
+}
 
 type ScreenState =
   | { phase: 'loading' }
@@ -272,6 +301,11 @@ export default function NearbyScreen() {
                     <Text style={[styles.cardSchedule, { color: theme.textMuted }]}>
                       {rule.days} · {rule.hours}
                     </Text>
+                    {REMINDERS_SUPPORTED && parseDaysLabel(rule.days) && parseStartTime(rule.hours) ? (
+                      <Pressable onPress={() => remindMeAboutRule(rule)} hitSlop={8}>
+                        <Text style={[styles.reminderLink, { color: theme.accent }]}>🔔 Remind me</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 ))}
                 <Text style={[styles.cardMeta, { color: theme.textMuted }]}>
@@ -367,6 +401,11 @@ const styles = StyleSheet.create({
   },
   cardSchedule: {
     fontSize: 13,
+  },
+  reminderLink: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
   cardLocation: {
     fontSize: 13,
