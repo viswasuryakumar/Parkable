@@ -25,7 +25,7 @@ class NearbyHandlerTest {
     // a known real-world-ish distance to assert distance_m against.
     private static final StoredRule STORED = new StoredRule(
             new RuleBuilder().permit("A").withId("zone-a").withDescription("Permit zone A").build(),
-            "gov_data", "sfmta-etl-v1", 37.77, -122.42, "gov-scan-1");
+            "gov_data", "sfmta-etl-v1", 37.77, -122.42, "gov-scan-1", "gov-scan-1");
 
     @Test
     void listsRuleSummariesWithoutVerdicts() throws Exception {
@@ -49,6 +49,28 @@ class NearbyHandlerTest {
         assertThat(rule.get("lng").asDouble()).isEqualTo(-122.42);
         assertThat(rule.get("distance_m").asDouble()).isCloseTo(880.0, offset(5.0));
         assertThat(response.getBody()).doesNotContain("verdict");
+        // gov_data's photoReference is a meaningless reused extraction id
+        // (no real photo exists) - must never attempt to resolve one.
+        assertThat(rule.get("photo_url").isNull()).isTrue();
+    }
+
+    @Test
+    void resolvesAPhotoUrlForCameraScanRowsButNeverForGovData() throws Exception {
+        StoredRule camera = new StoredRule(
+                new RuleBuilder().noParking().withId("cam-1").build(),
+                "camera_scan", "test-parser-v1", 37.77, -122.42, "scan-1", "scan/photo-1.jpg");
+        PhotoUrlResolver fakeResolver = photoReference -> java.util.Optional.of("https://photos.example/" + photoReference);
+        NearbyHandler handler = new NearbyHandler((lat, lng, radius) -> List.of(camera, STORED), fakeResolver);
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(
+                new APIGatewayProxyRequestEvent().withQueryStringParameters(
+                        Map.of("lat", "37.77", "lng", "-122.41")), null);
+
+        JsonNode rules = MAPPER.readTree(response.getBody()).get("rules");
+        JsonNode cameraRule = rules.get(0).get("source").asText().equals("camera_scan") ? rules.get(0) : rules.get(1);
+        JsonNode govRule = rules.get(0).get("source").asText().equals("gov_data") ? rules.get(0) : rules.get(1);
+        assertThat(cameraRule.get("photo_url").asText()).isEqualTo("https://photos.example/scan/photo-1.jpg");
+        assertThat(govRule.get("photo_url").isNull()).isTrue();
     }
 
     @Test

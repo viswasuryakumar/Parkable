@@ -58,6 +58,8 @@ export type NearbyRule = {
   lat: number;
   lng: number;
   distance_m: number;
+  // Only ever set for source="camera_scan" - gov_data has no real photo.
+  photo_url?: string | null;
 };
 
 const DEFAULT_BASE_URL = 'https://example.invalid';

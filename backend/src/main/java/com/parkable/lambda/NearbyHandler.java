@@ -37,14 +37,20 @@ public class NearbyHandler implements RequestHandler<APIGatewayProxyRequestEvent
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("h:mm a", Locale.US);
 
     private final RuleLookup lookup;
+    private final PhotoUrlResolver photoUrlResolver;
 
     /** No-arg constructor AWS Lambda actually invokes in production; wires from env vars (D4). */
     public NearbyHandler() {
-        this(StorageStack.from(EnvConfig.fromEnvironment()).lookup());
+        this(StorageStack.from(EnvConfig.fromEnvironment()).lookup(), S3PhotoUrlResolver.fromEnvironment());
     }
 
     public NearbyHandler(RuleLookup lookup) {
+        this(lookup, photoReference -> java.util.Optional.empty());
+    }
+
+    public NearbyHandler(RuleLookup lookup, PhotoUrlResolver photoUrlResolver) {
         this.lookup = Objects.requireNonNull(lookup, "lookup");
+        this.photoUrlResolver = Objects.requireNonNull(photoUrlResolver, "photoUrlResolver");
     }
 
     @Override
@@ -69,7 +75,7 @@ public class NearbyHandler implements RequestHandler<APIGatewayProxyRequestEvent
         }
     }
 
-    private static Map<String, Object> summarize(StoredRule stored, double queryLat, double queryLng) {
+    private Map<String, Object> summarize(StoredRule stored, double queryLat, double queryLng) {
         RuleMetadata metadata = stored.rule().metadata();
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("rule_id", metadata.ruleId());
@@ -83,6 +89,12 @@ public class NearbyHandler implements RequestHandler<APIGatewayProxyRequestEvent
         summary.put("lng", stored.longitude());
         summary.put("distance_m", Math.round(
                 GeoDistance.metersBetween(queryLat, queryLng, stored.latitude(), stored.longitude())));
+        // Only camera_scan rows have a real photo - gov_data's photoReference
+        // is a meaningless reused id (see StoredRule's own doc), so resolving
+        // one for it would just be a dead link.
+        summary.put("photo_url", "camera_scan".equals(stored.source())
+                ? photoUrlResolver.resolve(stored.photoReference()).orElse(null)
+                : null);
         return summary;
     }
 

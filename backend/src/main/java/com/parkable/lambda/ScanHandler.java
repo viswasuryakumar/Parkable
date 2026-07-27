@@ -135,7 +135,8 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             VerdictResult verdict = engine.evaluate(rules, request.at(), request.zone(), request.side());
             List<StoredRule> stored = rules.stream()
                     .map(rule -> new StoredRule(rule, "camera_scan", success.metadata().parserVersion(),
-                            request.latitude(), request.longitude(), success.envelope().extractionId()))
+                            request.latitude(), request.longitude(), success.envelope().extractionId(),
+                            success.metadata().photoReference()))
                     .toList();
             return Responses.verdict(verdict, stored, photoUrl, confidence);
         } catch (QueryParams.BadRequestException e) {

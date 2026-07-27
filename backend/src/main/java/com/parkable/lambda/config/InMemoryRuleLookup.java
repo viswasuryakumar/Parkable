@@ -32,7 +32,7 @@ final class InMemoryRuleLookup implements RuleLookup {
                         .map(rule -> new StoredRule(rule, record.source(), record.parserVersion(),
                                 record.gpsLocation().orElseThrow().latitude(),
                                 record.gpsLocation().orElseThrow().longitude(),
-                                record.extractionId())))
+                                record.extractionId(), record.photoReference())))
                 .toList();
     }
 

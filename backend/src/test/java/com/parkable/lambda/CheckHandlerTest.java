@@ -33,7 +33,7 @@ class CheckHandlerTest {
                             DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
                     .duringWindow(LocalTime.of(8, 0), LocalTime.of(18, 0))
                     .build(),
-            "gov_data", "sfmta-etl-v1", 37.7749, -122.4194, "gov-scan-1");
+            "gov_data", "sfmta-etl-v1", 37.7749, -122.4194, "gov-scan-1", "gov-scan-1");
 
     private static APIGatewayProxyResponseEvent call(List<StoredRule> stored, Map<String, String> params) {
         CheckHandler handler = new CheckHandler((lat, lng, radius) -> stored, FIXED_CLOCK);
@@ -60,6 +60,28 @@ class CheckHandlerTest {
         assertThat(json.get("source").asText()).isEqualTo("gov_data");
         assertThat(json.get("valid_until").asText()).isEqualTo("2026-07-15T01:00:00Z");
         assertThat(json.get("trace").isArray()).isTrue();
+        // gov_data's photoReference is a meaningless reused extraction id
+        // (no real photo exists) - must never attempt to resolve one.
+        assertThat(json.get("photo_url").isNull()).isTrue();
+        assertThat(json.get("confidence").isNull()).isTrue();
+    }
+
+    @Test
+    void resolvesAPhotoUrlOnlyForTheTriggeringCameraScanRule() {
+        StoredRule camera = new StoredRule(
+                new RuleBuilder().noParking().withId("cam-1")
+                        .onDays(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                                DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
+                        .duringWindow(LocalTime.of(8, 0), LocalTime.of(18, 0))
+                        .build(),
+                "camera_scan", "test-parser-v1", 37.7749, -122.4194, "scan-1", "scan/photo-1.jpg");
+        PhotoUrlResolver fakeResolver = photoReference -> java.util.Optional.of("https://photos.example/" + photoReference);
+        CheckHandler handler = new CheckHandler((lat, lng, radius) -> List.of(camera), FIXED_CLOCK, fakeResolver);
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(new APIGatewayProxyRequestEvent()
+                .withQueryStringParameters(Map.of("lat", "37.7749", "lng", "-122.4194", "at", "2026-07-14T18:04:00Z")), null);
+
+        assertThat(body(response).get("photo_url").asText()).isEqualTo("https://photos.example/scan/photo-1.jpg");
     }
 
     @Test

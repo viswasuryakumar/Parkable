@@ -35,15 +35,21 @@ public class CheckHandler implements RequestHandler<APIGatewayProxyRequestEvent,
     private final RuleLookup lookup;
     private final RulesEngine engine;
     private final Clock clock;
+    private final PhotoUrlResolver photoUrlResolver;
 
     /** No-arg constructor AWS Lambda actually invokes in production; wires from env vars (D4). */
     public CheckHandler() {
-        this(StorageStack.from(EnvConfig.fromEnvironment()).lookup(), Clock.systemUTC());
+        this(StorageStack.from(EnvConfig.fromEnvironment()).lookup(), Clock.systemUTC(), S3PhotoUrlResolver.fromEnvironment());
     }
 
     public CheckHandler(RuleLookup lookup, Clock clock) {
+        this(lookup, clock, photoReference -> Optional.empty());
+    }
+
+    public CheckHandler(RuleLookup lookup, Clock clock, PhotoUrlResolver photoUrlResolver) {
         this.lookup = Objects.requireNonNull(lookup, "lookup");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.photoUrlResolver = Objects.requireNonNull(photoUrlResolver, "photoUrlResolver");
         this.engine = new RulesEngine(new TemporalRuleEvaluator(new UsFederalHolidayCalendar()));
     }
 
@@ -69,9 +75,26 @@ public class CheckHandler implements RequestHandler<APIGatewayProxyRequestEvent,
 
             List<Rule> rules = stored.stream().map(StoredRule::rule).toList();
             VerdictResult result = engine.evaluate(rules, at, zone, side);
-            return Responses.verdict(result, stored);
+            Optional<String> photoUrl = photoUrlFor(result, stored);
+            return Responses.verdict(result, stored, photoUrl, Optional.empty());
         } catch (QueryParams.BadRequestException e) {
             return Responses.badRequest(e.getMessage());
         }
+    }
+
+    /**
+     * Same "which stored rule answered this" logic as Responses.sourceOf -
+     * the triggering rule's own StoredRule, or the first one when nothing
+     * triggered (all-clear PARKABLE). Only camera_scan rows have a real
+     * photo; gov_data's photoReference is a meaningless reused id (see
+     * StoredRule's own doc), so resolving one for it would just be a dead
+     * link - skip it rather than waste a presign call.
+     */
+    private Optional<String> photoUrlFor(VerdictResult result, List<StoredRule> stored) {
+        return result.triggeringRule()
+                .flatMap(match -> stored.stream().filter(s -> s.rule().equals(match.rule())).findFirst())
+                .or(() -> stored.stream().findFirst())
+                .filter(s -> "camera_scan".equals(s.source()))
+                .flatMap(s -> photoUrlResolver.resolve(s.photoReference()));
     }
 }

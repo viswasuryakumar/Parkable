@@ -315,8 +315,10 @@ public final class PostgresRuleRepository implements RuleRepository, RuleLookup 
         try {
             JsonNode stored = MAPPER.readTree(json);
             RuleDto dto = MAPPER.treeToValue(stored, RuleDto.class);
-            String scanId = stored.path(PARKABLE_METADATA).path("extraction_id").asText();
-            return new StoredRule(RuleFactory.from(dto), source, parserVersion, latitude, longitude, scanId);
+            JsonNode metadata = stored.path(PARKABLE_METADATA);
+            String scanId = metadata.path("extraction_id").asText();
+            String photoReference = metadata.path("photo_reference").asText();
+            return new StoredRule(RuleFactory.from(dto), source, parserVersion, latitude, longitude, scanId, photoReference);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Stored rule is not valid JSON", e);
         }
