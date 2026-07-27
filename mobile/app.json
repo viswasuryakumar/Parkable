@@ -23,7 +23,7 @@
         }
       ],
       [
-        "expo-camera",
+        "expo-image-picker",
         {
           "cameraPermission": "Parkable reads the parking sign in your photo. Nothing is uploaded until you tap capture."
         }

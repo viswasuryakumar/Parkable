@@ -1,9 +1,9 @@
 import React from 'react';
 import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScanResult, VerdictResponse, checkParking, scanParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
@@ -20,10 +20,11 @@ type FlowState =
   | { phase: 'error'; message: string };
 
 /**
- * Native takePictureAsync returns bare base64; the web build returns a full
- * data URL (data:image/png;base64,...). The API contract wants bare base64
- * plus an explicit media_type, so normalize here and derive the real type
- * from the prefix when present (web captures PNG, not JPEG).
+ * Native returns bare base64 (read separately via expo-file-system - see
+ * handleCapture); the web build returns a full data URL
+ * (data:image/png;base64,...). The API contract wants bare base64 plus an
+ * explicit media_type, so normalize here and derive the real type from the
+ * prefix when present (web captures PNG, not JPEG).
  */
 function normalizePhoto(raw: string): { base64: string; mediaType: string } {
   const match = raw.match(/^data:(image\/[a-z+.-]+);base64,(.*)$/s);
@@ -33,109 +34,59 @@ function normalizePhoto(raw: string): { base64: string; mediaType: string } {
   return { mediaType: 'image/jpeg', base64: raw };
 }
 
-/**
- * expo-camera's web preview is CSS-mirrored ONLY for a front-facing camera
- * (verified in its source: ExpoCamera.web.js applies scaleX(-1) exactly when
- * native.type === 'front'). A laptop has no true back camera, so requesting
- * facing="back" silently falls back to the only camera it has — the
- * front-facing webcam — which IS mirrored, and needs a counter-flip so
- * framing matches what's actually uploaded. A phone's browser has a real
- * back/environment camera, which is NOT mirrored to begin with — applying
- * the same counter-flip there un-does nothing and just mirrors a correct
- * image (a real bug this project hit). Distinguishing the two needs a
- * platform check finer than "is this web", since RN Web reports web for
- * both: sniff the user agent for a mobile OS.
- */
-function isMobileWebBrowser(): boolean {
-  if (Platform.OS !== 'web' || typeof navigator === 'undefined') {
-    return false;
-  }
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
 export default function CameraScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const isFocused = useIsFocused();
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [state, setState] = React.useState<FlowState>({ phase: 'preview' });
   const [timerStarted, setTimerStarted] = React.useState(false);
   const [startingTimer, setStartingTimer] = React.useState(false);
-  const [cameraReady, setCameraReady] = React.useState(false);
-  const cameraRef = React.useRef<CameraView>(null);
-
-  // React Navigation's tab bar keeps every tab mounted in the background by
-  // default (unlike the old hand-rolled tab switcher, which fully unmounted
-  // CameraScreen on every tab change) - a CameraView left mounted while
-  // backgrounded can leave its native camera session stale, so
-  // takePictureAsync() then fails with "Failed to capture image" even
-  // though the component never unmounted. Tearing the CameraView down
-  // whenever this tab isn't focused forces a fresh session each visit.
-  React.useEffect(() => {
-    if (!isFocused) {
-      setCameraReady(false);
-    }
-  }, [isFocused]);
-
-  // onCameraReady fires when the PREVIEW stream is up, which on some
-  // Android/CameraX combinations is measurably earlier than the actual
-  // ImageCapture use case being fully bound - calling takePicture in that
-  // gap throws CameraX's generic ImageCaptureException, surfaced by
-  // expo-camera as "Failed to capture image" with no further detail (found
-  // live: reproduced on every attempt, immediately after the preview
-  // looked ready). A short grace period after the ready callback is the
-  // commonly-reported workaround for this exact CameraX race.
-  const [captureUnlocked, setCaptureUnlocked] = React.useState(false);
-  React.useEffect(() => {
-    if (!cameraReady) {
-      setCaptureUnlocked(false);
-      return;
-    }
-    const timer = setTimeout(() => setCaptureUnlocked(true), 750);
-    return () => clearTimeout(timer);
-  }, [cameraReady]);
-
-  React.useEffect(() => {
-    if (cameraPermission && !cameraPermission.granted && cameraPermission.canAskAgain) {
-      requestCameraPermission();
-    }
-  }, [cameraPermission, requestCameraPermission]);
+  const [capturing, setCapturing] = React.useState(false);
 
   async function handleCapture() {
-    const camera = cameraRef.current;
-    if (!camera || !captureUnlocked) {
-      return;
-    }
-    setState({ phase: 'uploading' });
+    setCapturing(true);
     try {
-      // 0.5 (the original setting) over-compressed real signs into unreadable
-      // mush - a user's photo came out blurrier than their phone's own camera
-      // app, and re-scans kept needing retries. 0.85 is still nowhere near
-      // API Gateway's 10MB body limit (a phone/webcam photo at this quality
-      // is typically well under 1MB), so there's no real tradeoff here -
-      // 0.5 was just too aggressive for what it was trying to protect against.
-      //
-      // Native: request the file WITHOUT base64 and read it back separately
-      // via expo-file-system. Some Android camera/device combinations throw
-      // "Failed to capture image" specifically when base64:true makes the
-      // native module encode the image synchronously inside takePicture
-      // itself (found live) - splitting the read into its own step avoids
-      // that path entirely. Web has no such bug and expo-file-system can't
-      // read blob: URIs anyway, so it keeps the original base64:true call.
-      let rawBase64: string | undefined;
-      if (Platform.OS === 'web') {
-        const photo = await camera.takePictureAsync({ base64: true, quality: 0.85 });
-        rawBase64 = photo?.base64 ?? undefined;
-      } else {
-        const photo = await camera.takePictureAsync({ quality: 0.85 });
-        if (photo?.uri) {
-          rawBase64 = await FileSystem.readAsStringAsync(photo.uri, { encoding: 'base64' });
-        }
-      }
-      if (!rawBase64) {
-        setState({ phase: 'error', message: 'Could not capture a photo. Try again.' });
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        setState({
+          phase: 'error',
+          message: permission.canAskAgain
+            ? 'Camera access is required to scan a sign.'
+            : 'Camera access is required. Enable it in your device settings.',
+        });
         return;
       }
+
+      // Delegates the actual capture to the phone's own camera app rather
+      // than a custom in-app CameraX preview - found live that expo-camera's
+      // CameraView.takePictureAsync failed unconditionally on a real device
+      // ("Failed to capture image", CameraX's generic ImageCaptureException,
+      // per expo-camera's own Android source) while the same device's stock
+      // camera app worked fine. Delegating to that stock app sidesteps
+      // whatever CameraX-specific issue this device (and possibly others)
+      // has, at the cost of losing the custom in-app frame-guide overlay.
+      const captured = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+      if (captured.canceled) {
+        return;
+      }
+      const asset = captured.assets[0];
+
+      setState({ phase: 'uploading' });
+
+      // Read the file back separately rather than requesting base64 from
+      // the picker directly - same reasoning as the capture path itself:
+      // don't trust an in-process native encode step more than necessary.
+      // Web already returns a data: URL directly from the picker.
+      let rawBase64: string | undefined;
+      if (Platform.OS === 'web') {
+        rawBase64 = asset.uri;
+      } else {
+        rawBase64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
+      }
+      if (!rawBase64) {
+        setState({ phase: 'error', message: 'Could not read the captured photo. Try again.' });
+        return;
+      }
+
       const locationPermission = await Location.requestForegroundPermissionsAsync();
       if (locationPermission.status !== 'granted') {
         setState({
@@ -175,6 +126,8 @@ export default function CameraScreen() {
         phase: 'error',
         message: error instanceof Error ? error.message : 'Upload failed.',
       });
+    } finally {
+      setCapturing(false);
     }
   }
 
@@ -197,23 +150,6 @@ export default function CameraScreen() {
     } finally {
       setStartingTimer(false);
     }
-  }
-
-  if (!cameraPermission?.granted) {
-    return (
-      <View style={[styles.centered, { backgroundColor: theme.background }]}>
-        <Text style={[styles.title, { color: theme.text }]}>Camera access is required</Text>
-        <Text style={[styles.note, { color: theme.textMuted }]}>
-          Parkable reads the parking sign from your photo. Nothing is uploaded until you tap
-          capture.
-        </Text>
-        {cameraPermission?.canAskAgain === false ? (
-          <Text style={[styles.note, { color: theme.textMuted }]}>Enable camera access in your device settings.</Text>
-        ) : (
-          <Button title="Grant camera access" onPress={requestCameraPermission} />
-        )}
-      </View>
-    );
   }
 
   if (state.phase === 'uploading') {
@@ -268,32 +204,18 @@ export default function CameraScreen() {
     );
   }
 
-  const needsUnmirror = Platform.OS === 'web' && !isMobileWebBrowser();
-
   return (
-    <View style={styles.cameraContainer}>
-      {/* Counter-flip only a desktop browser's forced-front webcam preview
-          (see isMobileWebBrowser doc above) — a phone browser's real back
-          camera must render untouched. Either way the captured PHOTO itself
-          was never mirrored (expo-camera's takePicture never sets
-          isImageMirror); this transform only affects what's on screen while
-          framing the shot. */}
-      <View style={needsUnmirror ? styles.unmirror : styles.cameraFill}>
-        {isFocused ? (
-          <CameraView
-            ref={cameraRef}
-            style={styles.cameraFill}
-            facing="back"
-            onCameraReady={() => setCameraReady(true)}
-          />
-        ) : null}
-      </View>
-      <View style={styles.controls}>
-        <Text style={[styles.note, { color: theme.textMuted }]}>
-          {captureUnlocked ? 'Fit the whole parking sign in the frame.' : 'Getting the camera ready…'}
-        </Text>
-        <Button title="Capture" onPress={handleCapture} disabled={!captureUnlocked} />
-      </View>
+    <View style={[styles.centered, { backgroundColor: theme.background }]}>
+      <Text style={styles.icon}>📷</Text>
+      <Text style={[styles.title, { color: theme.text }]}>Scan a parking sign</Text>
+      <Text style={[styles.note, { color: theme.textMuted }]}>
+        Fit the whole sign in the frame. Nothing is uploaded until after you take the photo.
+      </Text>
+      {capturing ? (
+        <ActivityIndicator size="large" />
+      ) : (
+        <Button title="Open Camera" onPress={handleCapture} />
+      )}
     </View>
   );
 }
@@ -306,20 +228,8 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 12,
   },
-  cameraContainer: {
-    flex: 1,
-  },
-  cameraFill: {
-    flex: 1,
-  },
-  unmirror: {
-    flex: 1,
-    transform: [{ scaleX: -1 }],
-  },
-  controls: {
-    padding: 16,
-    gap: 8,
-    alignItems: 'center',
+  icon: {
+    fontSize: 48,
   },
   title: {
     fontSize: 24,
