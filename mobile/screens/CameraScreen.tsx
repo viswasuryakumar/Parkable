@@ -77,6 +77,24 @@ export default function CameraScreen() {
     }
   }, [isFocused]);
 
+  // onCameraReady fires when the PREVIEW stream is up, which on some
+  // Android/CameraX combinations is measurably earlier than the actual
+  // ImageCapture use case being fully bound - calling takePicture in that
+  // gap throws CameraX's generic ImageCaptureException, surfaced by
+  // expo-camera as "Failed to capture image" with no further detail (found
+  // live: reproduced on every attempt, immediately after the preview
+  // looked ready). A short grace period after the ready callback is the
+  // commonly-reported workaround for this exact CameraX race.
+  const [captureUnlocked, setCaptureUnlocked] = React.useState(false);
+  React.useEffect(() => {
+    if (!cameraReady) {
+      setCaptureUnlocked(false);
+      return;
+    }
+    const timer = setTimeout(() => setCaptureUnlocked(true), 750);
+    return () => clearTimeout(timer);
+  }, [cameraReady]);
+
   React.useEffect(() => {
     if (cameraPermission && !cameraPermission.granted && cameraPermission.canAskAgain) {
       requestCameraPermission();
@@ -85,7 +103,7 @@ export default function CameraScreen() {
 
   async function handleCapture() {
     const camera = cameraRef.current;
-    if (!camera || !cameraReady) {
+    if (!camera || !captureUnlocked) {
       return;
     }
     setState({ phase: 'uploading' });
@@ -272,9 +290,9 @@ export default function CameraScreen() {
       </View>
       <View style={styles.controls}>
         <Text style={[styles.note, { color: theme.textMuted }]}>
-          {cameraReady ? 'Fit the whole parking sign in the frame.' : 'Getting the camera ready…'}
+          {captureUnlocked ? 'Fit the whole parking sign in the frame.' : 'Getting the camera ready…'}
         </Text>
-        <Button title="Capture" onPress={handleCapture} disabled={!cameraReady} />
+        <Button title="Capture" onPress={handleCapture} disabled={!captureUnlocked} />
       </View>
     </View>
   );
