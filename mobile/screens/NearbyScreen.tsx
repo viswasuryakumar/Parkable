@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { NearbyRule, nearbyParking } from '../services/api';
-import { describeLocation } from '../utils/geo';
+import { describeLocation, metersBetween } from '../utils/geo';
 import { useTheme } from '../theme/colors';
 import NearbyMap from '../components/NearbyMap';
 import { parseDaysLabel, parseStartTime, nextOccurrence } from '../utils/schedule';
@@ -82,29 +82,41 @@ type SignGroup = {
 const REVERSE_GEOCODE_SUPPORTED = Platform.OS !== 'web';
 const MAX_STREET_LOOKUPS = 15;
 
+// A phone's GPS is routinely 5-15m off, and two scans of the very same
+// physical sign taken from slightly different standing positions land at
+// measurably different raw coordinates - exact-match grouping (the previous
+// approach, rounding to ~1m) split real re-reads of one sign into separate
+// "signs" in the list the moment GPS drift exceeded that (found live: a
+// sign's two rules, originally shown together, later appeared as two
+// separate single-rule signs after a re-scan). Clustering by proximity
+// instead keeps them together; content/scan_id (handled separately, below)
+// is still what decides whether nearby entries are truly distinct signs.
+const SIGN_CLUSTER_RADIUS_METERS = 15;
+
 /**
  * Every rule extracted from ONE photo shares that scan's single GPS reading
  * exactly, and gov-data rows likewise carry one real-world point per
- * regulation - so rounding to ~1m and grouping by (source, point) recovers
- * "which rules came from signs standing at the same spot" with no extra
- * lookup. Within that, scan_id separates "panels of one sign" from
- * "two different signs that happen to share a spot."
+ * regulation - so clustering by proximity recovers "which rules came from
+ * signs standing at the same spot" with no extra lookup. Within that,
+ * scan_id separates "panels of one sign" from "two different signs that
+ * happen to share a spot."
  */
 function groupBySign(rules: NearbyRule[]): SignGroup[] {
-  const groups = new Map<string, SignGroup>();
+  const groups: SignGroup[] = [];
   for (const rule of rules) {
-    const key = `${rule.source}:${rule.lat.toFixed(5)}:${rule.lng.toFixed(5)}`;
-    let group = groups.get(key);
+    let group = groups.find(
+      (g) => g.source === rule.source && metersBetween(g.lat, g.lng, rule.lat, rule.lng) <= SIGN_CLUSTER_RADIUS_METERS
+    );
     if (!group) {
       group = {
-        key,
+        key: `${rule.source}:${rule.lat.toFixed(5)}:${rule.lng.toFixed(5)}`,
         lat: rule.lat,
         lng: rule.lng,
         distanceM: rule.distance_m,
         source: rule.source,
         scans: [],
       };
-      groups.set(key, group);
+      groups.push(group);
     }
     let scan = group.scans.find((s) => s.scanId === rule.scan_id);
     if (!scan) {
@@ -113,7 +125,7 @@ function groupBySign(rules: NearbyRule[]): SignGroup[] {
     }
     scan.rules.push(rule);
   }
-  return Array.from(groups.values()).sort((a, b) => a.distanceM - b.distanceM);
+  return groups.sort((a, b) => a.distanceM - b.distanceM);
 }
 
 export default function NearbyScreen() {
