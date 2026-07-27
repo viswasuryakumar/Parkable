@@ -239,14 +239,20 @@ export default function NearbyScreen() {
         <NearbyMap
           userLat={userLat}
           userLng={userLng}
-          groups={state.groups.map((group) => ({
-            key: group.key,
-            lat: group.lat,
-            lng: group.lng,
-            description: group.scans
-              .flatMap((scan) => scan.rules.map((rule) => rule.description))
-              .join(' · '),
-          }))}
+          // One marker per SCAN, not per location cluster - each scan has
+          // its own real reported coordinates, and a cluster can hold
+          // several genuinely distinct scans (found live: "3 signs" all
+          // showed as a single pin, because the cluster's own reference
+          // point was reused for every scan inside it instead of each
+          // scan's actual GPS reading).
+          groups={state.groups.flatMap((group) =>
+            group.scans.map((scan) => ({
+              key: `${group.key}:${scan.scanId}`,
+              lat: scan.rules[0]?.lat ?? group.lat,
+              lng: scan.rules[0]?.lng ?? group.lng,
+              description: scan.rules.map((rule) => rule.description).join(' · '),
+            }))
+          )}
         />
       ) : (
       <FlatList
