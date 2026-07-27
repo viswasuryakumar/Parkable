@@ -1,8 +1,9 @@
 import React from 'react';
 import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScanResult, VerdictResponse, checkParking, scanParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
@@ -55,11 +56,26 @@ function isMobileWebBrowser(): boolean {
 export default function CameraScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const isFocused = useIsFocused();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [state, setState] = React.useState<FlowState>({ phase: 'preview' });
   const [timerStarted, setTimerStarted] = React.useState(false);
   const [startingTimer, setStartingTimer] = React.useState(false);
+  const [cameraReady, setCameraReady] = React.useState(false);
   const cameraRef = React.useRef<CameraView>(null);
+
+  // React Navigation's tab bar keeps every tab mounted in the background by
+  // default (unlike the old hand-rolled tab switcher, which fully unmounted
+  // CameraScreen on every tab change) - a CameraView left mounted while
+  // backgrounded can leave its native camera session stale, so
+  // takePictureAsync() then fails with "Failed to capture image" even
+  // though the component never unmounted. Tearing the CameraView down
+  // whenever this tab isn't focused forces a fresh session each visit.
+  React.useEffect(() => {
+    if (!isFocused) {
+      setCameraReady(false);
+    }
+  }, [isFocused]);
 
   React.useEffect(() => {
     if (cameraPermission && !cameraPermission.granted && cameraPermission.canAskAgain) {
@@ -69,7 +85,7 @@ export default function CameraScreen() {
 
   async function handleCapture() {
     const camera = cameraRef.current;
-    if (!camera) {
+    if (!camera || !cameraReady) {
       return;
     }
     setState({ phase: 'uploading' });
@@ -80,8 +96,25 @@ export default function CameraScreen() {
       // API Gateway's 10MB body limit (a phone/webcam photo at this quality
       // is typically well under 1MB), so there's no real tradeoff here -
       // 0.5 was just too aggressive for what it was trying to protect against.
-      const photo = await camera.takePictureAsync({ base64: true, quality: 0.85 });
-      if (!photo?.base64) {
+      //
+      // Native: request the file WITHOUT base64 and read it back separately
+      // via expo-file-system. Some Android camera/device combinations throw
+      // "Failed to capture image" specifically when base64:true makes the
+      // native module encode the image synchronously inside takePicture
+      // itself (found live) - splitting the read into its own step avoids
+      // that path entirely. Web has no such bug and expo-file-system can't
+      // read blob: URIs anyway, so it keeps the original base64:true call.
+      let rawBase64: string | undefined;
+      if (Platform.OS === 'web') {
+        const photo = await camera.takePictureAsync({ base64: true, quality: 0.85 });
+        rawBase64 = photo?.base64 ?? undefined;
+      } else {
+        const photo = await camera.takePictureAsync({ quality: 0.85 });
+        if (photo?.uri) {
+          rawBase64 = await FileSystem.readAsStringAsync(photo.uri, { encoding: 'base64' });
+        }
+      }
+      if (!rawBase64) {
         setState({ phase: 'error', message: 'Could not capture a photo. Try again.' });
         return;
       }
@@ -96,7 +129,7 @@ export default function CameraScreen() {
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      const { base64, mediaType } = normalizePhoto(photo.base64);
+      const { base64, mediaType } = normalizePhoto(rawBase64);
       const { latitude, longitude } = position.coords;
       const result: ScanResult = await scanParking({
         photo_base64: base64,
@@ -228,11 +261,20 @@ export default function CameraScreen() {
           isImageMirror); this transform only affects what's on screen while
           framing the shot. */}
       <View style={needsUnmirror ? styles.unmirror : styles.cameraFill}>
-        <CameraView ref={cameraRef} style={styles.cameraFill} facing="back" />
+        {isFocused ? (
+          <CameraView
+            ref={cameraRef}
+            style={styles.cameraFill}
+            facing="back"
+            onCameraReady={() => setCameraReady(true)}
+          />
+        ) : null}
       </View>
       <View style={styles.controls}>
-        <Text style={[styles.note, { color: theme.textMuted }]}>Fit the whole parking sign in the frame.</Text>
-        <Button title="Capture" onPress={handleCapture} />
+        <Text style={[styles.note, { color: theme.textMuted }]}>
+          {cameraReady ? 'Fit the whole parking sign in the frame.' : 'Getting the camera ready…'}
+        </Text>
+        <Button title="Capture" onPress={handleCapture} disabled={!cameraReady} />
       </View>
     </View>
   );

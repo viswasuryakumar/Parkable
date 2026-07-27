@@ -1,9 +1,17 @@
 import React from 'react';
-import { SafeAreaView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { LogBox, SafeAreaView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import RootNavigator from './navigation/RootNavigator';
 import { useTheme } from './theme/colors';
+
+// Expo Go (SDK 53+) dropped remote push support and logs this as a
+// console.error, which React Native's LogBox escalates to a blocking
+// full-screen overlay on every launch. We only ever use LOCAL notifications
+// (scheduleNotificationAsync for Find My Car / reminders) - never request a
+// push token - so this specific warning is expected noise, not a real
+// error. A real dev-client/standalone build won't hit this at all.
+LogBox.ignoreLogs(['expo-notifications: Android Push notifications']);
 
 export default function App() {
   const theme = useTheme();
