@@ -26,6 +26,10 @@ Parameters:
     Type: String
     Default: parkable-photos
     Description: Name of the S3 bucket used for scan photos
+  AdminSecretParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /parkable/admin-secret
+    Description: SSM path for the shared secret gating GET /reports (owner-only report review, no real auth system)
 
 Resources:
   PhotosBucket:
@@ -186,6 +190,34 @@ Resources:
           Properties:
             Path: /report
             Method: post
+
+  ReportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: parkable-reports
+      Runtime: java21
+      Timeout: 30
+      MemorySize: 512
+      CodeUri: ../backend/target/parkable-cli.jar
+      Handler: com.parkable.lambda.ReportsHandler::handleRequest
+      Environment:
+        Variables:
+          PARKABLE_DB_URL: !Ref DatabaseUrlParameter
+          PARKABLE_ADMIN_SECRET: !Ref AdminSecretParameter
+      Policies:
+        - Statement:
+            - Sid: ReadParameters
+              Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: '*'
+      Events:
+        ReportsRoute:
+          Type: Api
+          Properties:
+            Path: /reports
+            Method: get
 
 Outputs:
   ApiEndpoint:

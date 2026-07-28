@@ -11,12 +11,14 @@ import java.util.Optional;
  * from SSM at deploy time; this class only reads whatever the process
  * environment already contains and never calls AWS directly.
  */
-public record EnvConfig(Optional<String> dbUrl, Optional<String> openRouterApiKey, Optional<String> anthropicApiKey) {
+public record EnvConfig(Optional<String> dbUrl, Optional<String> openRouterApiKey, Optional<String> anthropicApiKey,
+                         Optional<String> adminSecret) {
 
     public EnvConfig {
         Objects.requireNonNull(dbUrl, "dbUrl");
         Objects.requireNonNull(openRouterApiKey, "openRouterApiKey");
         Objects.requireNonNull(anthropicApiKey, "anthropicApiKey");
+        Objects.requireNonNull(adminSecret, "adminSecret");
     }
 
     public static EnvConfig fromEnvironment() {
@@ -27,7 +29,8 @@ public record EnvConfig(Optional<String> dbUrl, Optional<String> openRouterApiKe
         return new EnvConfig(
                 nonBlank(env, "PARKABLE_DB_URL"),
                 nonBlank(env, "OPENROUTER_API_KEY"),
-                nonBlank(env, "ANTHROPIC_API_KEY"));
+                nonBlank(env, "ANTHROPIC_API_KEY"),
+                nonBlank(env, "PARKABLE_ADMIN_SECRET"));
     }
 
     private static Optional<String> nonBlank(Map<String, String> env, String name) {

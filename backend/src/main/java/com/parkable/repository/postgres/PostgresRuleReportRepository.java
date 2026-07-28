@@ -6,10 +6,14 @@ import com.parkable.repository.RuleReportRepository;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.UUID;
 
 /**
  * Postgres storage for {@link RuleReport}. Reuses
@@ -22,6 +26,13 @@ public final class PostgresRuleReportRepository implements RuleReportRepository 
     private static final String INSERT_REPORT = """
             INSERT INTO rule_reports (id, rule_id, reason, device_id, reported_at)
             VALUES (?, ?, ?, ?, ?)
+            """;
+
+    private static final String SELECT_REPORTS = """
+            SELECT id, rule_id, reason, device_id, reported_at
+            FROM rule_reports
+            ORDER BY reported_at DESC
+            LIMIT 200
             """;
 
     private final String jdbcUrl;
@@ -43,6 +54,26 @@ public final class PostgresRuleReportRepository implements RuleReportRepository 
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new IllegalStateException("Postgres failed to save rule report", e);
+        }
+    }
+
+    @Override
+    public List<RuleReport> list() {
+        List<RuleReport> reports = new ArrayList<>();
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement(SELECT_REPORTS);
+             ResultSet rs = statement.executeQuery()) {
+            while (rs.next()) {
+                reports.add(new RuleReport(
+                        UUID.fromString(rs.getString("id")),
+                        rs.getString("rule_id"),
+                        rs.getString("reason"),
+                        rs.getString("device_id"),
+                        rs.getTimestamp("reported_at").toInstant()));
+            }
+            return reports;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Postgres failed to list rule reports", e);
         }
     }
 
