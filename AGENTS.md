@@ -35,6 +35,7 @@ Parkable answers **"Can I park here right now?"** — LLM extracts parking rules
 | `backend/src/main/java/com/parkable/datasource` + tests | Codex | Task X2 |
 | `backend/sql/` | Codex | Tasks X3, X5 |
 | `infra/` (SAM template, deploy docs) | Copilot | Phase 2 Task P3 — greenfield |
+| `.github/workflows/` (CI/CD) | Claude Code | Spans both `backend/` and `mobile/`, both already Claude Code's areas |
 | `mobile/` | Claude Code (since Phase 3, 2026-07-21, user decision) | Was Copilot (P1/P4 scaffold); Phase 3 build-out C16-C19 |
 | `evals/` | Copilot | Task P2 |
 | `docs/`, `CLAUDE.md`, `AGENTS.md`, schema JSON resource | **Claude Code ONLY** | Schema changes are breaking — request via PROGRESS.md |

@@ -1,0 +1,65 @@
+name: Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'infra/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'infra/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Run backend test suite
+        working-directory: backend
+        run: mvn -B test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Requires manual approval in the GitHub UI (Settings > Environments >
+    # production > required reviewers) before this job runs - tests above
+    # run unattended on every push, but nothing reaches the live AWS stack
+    # without a deliberate click.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Package backend jar
+        working-directory: backend
+        run: mvn -B clean package -DskipTests
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-1
+      - name: Package CloudFormation template
+        working-directory: infra
+        run: >
+          aws cloudformation package
+          --template-file template.yaml
+          --s3-bucket parkable-photos
+          --output-template-file packaged.yaml
+      - name: Deploy
+        working-directory: infra
+        run: >
+          aws cloudformation deploy
+          --template-file packaged.yaml
+          --stack-name parkable-api
+          --capabilities CAPABILITY_IAM
+          --region us-west-1

@@ -6,4 +6,4 @@ s3_prefix = "parkable-api"
 region = "us-west-1"
 confirm_changeset = false
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "DatabaseUrlParameter=/parkable/db-url OpenRouterApiKeyParameter=/parkable/openrouter-api-key BucketName=parkable-photos"
+parameter_overrides = "DatabaseUrlParameter=/parkable/db-url OpenRouterApiKeyParameter=/parkable/openrouter-api-key BucketName=parkable-photos AdminSecretParameter=/parkable/admin-secret"

@@ -1,0 +1,28 @@
+name: Mobile
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+  pull_request:
+    paths:
+      - 'mobile/**'
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run typecheck
+      # Same web-bundle sanity check used manually after every mobile change
+      # this session - catches bundling/import errors typecheck alone can't
+      # (e.g. the .native./.web. platform-suffix resolution issue).
+      - run: npx expo export --platform web
