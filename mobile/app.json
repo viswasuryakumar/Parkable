@@ -3,6 +3,15 @@
     "name": "Parkable",
     "slug": "parkable",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "Parkable",
+      "shortName": "Parkable",
+      "themeColor": "#2563eb",
+      "backgroundColor": "#ffffff",
+      "display": "standalone"
+    },
     "ios": {
       "bundleIdentifier": "dev.parkable.app",
       "infoPlist": {
@@ -12,7 +21,11 @@
     },
     "android": {
       "package": "dev.parkable.app",
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "CAMERA"]
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "CAMERA"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2563eb"
+      }
     },
     "plugins": [
       "expo-asset",
