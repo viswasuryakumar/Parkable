@@ -69,12 +69,14 @@ be a fully qualified name" error. Prefix the command with
 - **Every push/PR touching `backend/**` or `infra/**`**: runs the backend
   test suite (`mvn test`). No AWS credentials involved — this job can't
   touch the live stack.
-- **Push to `main`, after tests pass**: a second job packages and deploys to
-  `parkable-api`, but only after a human clicks **Approve** in the GitHub
-  Actions tab — the job targets a `production` environment with a required
-  reviewer, so nothing reaches the live stack unattended. Skip this gate
-  by removing `environment: production` from the workflow if that
-  friction stops being wanted.
+- **Deploy is manual-trigger only**: from the repo's Actions tab, open the
+  "Backend" workflow and click **Run workflow** (or `gh workflow run
+  backend.yml`). This runs tests first, then packages and deploys to
+  `parkable-api` — nothing reaches AWS on an ordinary push to `main`.
+  (GitHub's "required reviewers" environment protection would give the same
+  guarantee with a nicer approval UI, but it needs a paid plan on a private
+  repo — `workflow_dispatch` gets the same "nothing ships without a
+  deliberate action" property for free.)
 
 **Secrets** (Settings → Secrets and variables → Actions):
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — a dedicated IAM access key

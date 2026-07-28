@@ -11,6 +11,11 @@ on:
     paths:
       - 'backend/**'
       - 'infra/**'
+  # Deploy is manual-trigger only (see the deploy job below) - GitHub's
+  # "required reviewers" environment protection needs a paid plan on a
+  # private repo, so a button-press trigger gets the same "nothing reaches
+  # AWS without a deliberate action" guarantee without that dependency.
+  workflow_dispatch:
 
 jobs:
   test:
@@ -27,13 +32,8 @@ jobs:
 
   deploy:
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # Requires manual approval in the GitHub UI (Settings > Environments >
-    # production > required reviewers) before this job runs - tests above
-    # run unattended on every push, but nothing reaches the live AWS stack
-    # without a deliberate click.
-    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
