@@ -85,6 +85,65 @@ class CheckHandlerTest {
     }
 
     @Test
+    void multipleRulesSharingOneScanIdStayAsOneSignsSingleVerdict() {
+        // Panels of the SAME photographed sign share one scanId - these
+        // must keep evaluating together (e.g. a street-sweeping panel and a
+        // time-limit panel on one physical board), not get split into two
+        // signs the way two genuinely distinct scans would.
+        StoredRule sweepPanel = new StoredRule(
+                new RuleBuilder().noParking().withId("panel-sweep")
+                        .onDays(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                                DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
+                        .duringWindow(LocalTime.of(8, 0), LocalTime.of(18, 0))
+                        .build(),
+                "camera_scan", "test-parser-v1", 37.7749, -122.4194, "scan-one-sign", "scan/one.jpg");
+        StoredRule limitPanel = new StoredRule(
+                new RuleBuilder().permit("A").withId("panel-permit").build(),
+                "camera_scan", "test-parser-v1", 37.7749, -122.4194, "scan-one-sign", "scan/one.jpg");
+
+        APIGatewayProxyResponseEvent response = call(List.of(sweepPanel, limitPanel), Map.of(
+                "lat", "37.7749", "lng", "-122.4194", "at", "2026-07-14T18:04:00Z"));
+
+        JsonNode json = body(response);
+        assertThat(json.has("signs")).isFalse();
+        assertThat(json.get("verdict").asText()).isEqualTo("NOT_PARKABLE");
+        assertThat(json.get("rule_id").asText()).isEqualTo("panel-sweep");
+    }
+
+    @Test
+    void distinctSignsWithinRadiusEachGetTheirOwnVerdictInsteadOfBeingBlended() {
+        // Two unrelated signs a few metres apart within the 25m check
+        // radius: one says no parking right now, the other has no active
+        // restriction. A single blended verdict would have to pick one
+        // winner and hide the other sign's situation entirely.
+        StoredRule signA = new StoredRule(
+                new RuleBuilder().noParking().withId("sign-a-rule")
+                        .onDays(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                                DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
+                        .duringWindow(LocalTime.of(8, 0), LocalTime.of(18, 0))
+                        .build(),
+                "camera_scan", "test-parser-v1", 37.7749, -122.4194, "scan-a", "scan/a.jpg");
+        StoredRule signB = new StoredRule(
+                new RuleBuilder().permit("B").withId("sign-b-rule").build(),
+                "camera_scan", "test-parser-v1", 37.77495, -122.41935, "scan-b", "scan/b.jpg");
+
+        APIGatewayProxyResponseEvent response = call(List.of(signA, signB), Map.of(
+                "lat", "37.7749", "lng", "-122.4194", "at", "2026-07-14T18:04:00Z"));
+
+        assertThat(response.getStatusCode()).isEqualTo(200);
+        JsonNode signs = body(response).get("signs");
+        assertThat(signs).isNotNull();
+        assertThat(signs).hasSize(2);
+        // Closest first: signA is the query point itself (0m), signB a few metres away.
+        assertThat(signs.get(0).get("rule_id").asText()).isEqualTo("sign-a-rule");
+        assertThat(signs.get(0).get("verdict").asText()).isEqualTo("NOT_PARKABLE");
+        assertThat(signs.get(0).get("distance_m").asInt()).isEqualTo(0);
+        assertThat(signs.get(1).get("rule_id").asText()).isEqualTo("sign-b-rule");
+        assertThat(signs.get(1).get("distance_m").asInt()).isGreaterThan(0);
+        assertThat(body(response).has("verdict")).isFalse();
+    }
+
+    @Test
     void missingAtParameterUsesInjectedClock() {
         APIGatewayProxyResponseEvent response = call(List.of(NO_PARKING), Map.of(
                 "lat", "37.7749", "lng", "-122.4194"));

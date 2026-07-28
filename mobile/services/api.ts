@@ -19,8 +19,18 @@ export type NoDataResponse = {
   message: string;
 };
 
+// One sign's verdict when /check found several distinct signs within 25m -
+// same fields as VerdictResponse, tagged with where that particular sign is
+// so the driver can tell them apart (mirrors NearbyRule's lat/lng/distance_m).
+export type SignVerdict = VerdictResponse & {
+  lat: number;
+  lng: number;
+  distance_m: number;
+};
+
 export type CheckResult =
   | { kind: 'verdict'; verdict: VerdictResponse }
+  | { kind: 'multiple_signs'; signs: SignVerdict[] }
   | { kind: 'no_data'; message: string };
 
 export type ScanRequest = {
@@ -105,7 +115,11 @@ export async function checkParking(lat: number, lng: number): Promise<CheckResul
     throw new Error(`Check request failed: ${response.status}`);
   }
 
-  return { kind: 'verdict', verdict: (await response.json()) as VerdictResponse };
+  const body = (await response.json()) as VerdictResponse & { signs?: SignVerdict[] };
+  if (body.signs) {
+    return { kind: 'multiple_signs', signs: body.signs };
+  }
+  return { kind: 'verdict', verdict: body };
 }
 
 export async function nearbyParking(lat: number, lng: number): Promise<NearbyRule[]> {

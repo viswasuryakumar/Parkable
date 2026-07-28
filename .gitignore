@@ -21,3 +21,6 @@ Thumbs.db
 # Secrets — never commit credentials
 .env
 *.pem
+
+.vercel
+.env*

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -35,6 +35,7 @@ export default function VerdictScreen() {
   const [timerStarted, setTimerStarted] = React.useState(false);
   const [startingTimer, setStartingTimer] = React.useState(false);
   const [favoriteSaved, setFavoriteSaved] = React.useState(false);
+  const [signIndex, setSignIndex] = React.useState(0);
   const onScanRequested = React.useCallback(() => navigation.navigate('Scan'), [navigation]);
 
   const runCheck = React.useCallback(async () => {
@@ -42,6 +43,7 @@ export default function VerdictScreen() {
     setStreet(null);
     setTimerStarted(false);
     setFavoriteSaved(false);
+    setSignIndex(0);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
@@ -86,9 +88,19 @@ export default function VerdictScreen() {
       // the screen first loaded - the two are rarely the same.
       const result = await checkParking(state.lat, state.lng);
       setState({ phase: 'result', result, lat: state.lat, lng: state.lng });
+      // Best-effort: stay on the same sign if the refreshed result still has
+      // that many signs, otherwise fall back to the closest one rather than
+      // pointing at an index that no longer exists.
+      setSignIndex((prev) => (result.kind === 'multiple_signs' && prev < result.signs.length ? prev : 0));
       setTimerStarted(true);
-      if (result.kind === 'verdict') {
-        startParkingSession(state.lat, state.lng, result.verdict.valid_until ?? null).catch(() => {});
+      const validUntil =
+        result.kind === 'verdict'
+          ? result.verdict.valid_until
+          : result.kind === 'multiple_signs'
+            ? result.signs[0]?.valid_until
+            : undefined;
+      if (validUntil !== undefined) {
+        startParkingSession(state.lat, state.lng, validUntil ?? null).catch(() => {});
       }
     } catch {
       // Leave the prior verdict on screen; the button just stays available to retry.
@@ -130,7 +142,13 @@ export default function VerdictScreen() {
     );
   }
 
-  const verdict: VerdictResponse = state.result.verdict;
+  // Most of the time /check answers with one sign; when several distinct
+  // signs land within the 25m radius it answers with an array instead,
+  // rather than silently blending unrelated signs into one verdict (see
+  // CheckHandler.groupBySign) - the carousel below is only shown then.
+  const signs = state.result.kind === 'multiple_signs' ? state.result.signs : null;
+  const activeIndex = signs ? Math.min(signIndex, signs.length - 1) : 0;
+  const verdict: VerdictResponse = signs ? signs[activeIndex] : (state.result as { kind: 'verdict'; verdict: VerdictResponse }).verdict;
   const { lat, lng } = state;
 
   async function saveFavorite() {
@@ -147,6 +165,37 @@ export default function VerdictScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {street ? <Text style={[styles.location, { color: theme.accent }]}>Near {street}</Text> : null}
+      {signs && signs.length > 1 ? (
+        <View style={styles.carouselHeader}>
+          <Pressable
+            onPress={() => setSignIndex((i) => Math.max(0, i - 1))}
+            disabled={activeIndex === 0}
+            hitSlop={8}
+            style={[
+              styles.carouselArrow,
+              { backgroundColor: theme.border },
+              activeIndex === 0 && styles.carouselArrowDisabled,
+            ]}
+          >
+            <Text style={[styles.carouselArrowText, { color: theme.text }]}>‹</Text>
+          </Pressable>
+          <Text style={[styles.carouselLabel, { color: theme.textMuted }]}>
+            Sign {activeIndex + 1} of {signs.length} nearby
+          </Text>
+          <Pressable
+            onPress={() => setSignIndex((i) => Math.min(signs.length - 1, i + 1))}
+            disabled={activeIndex === signs.length - 1}
+            hitSlop={8}
+            style={[
+              styles.carouselArrow,
+              { backgroundColor: theme.border },
+              activeIndex === signs.length - 1 && styles.carouselArrowDisabled,
+            ]}
+          >
+            <Text style={[styles.carouselArrowText, { color: theme.text }]}>›</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <VerdictSummary
         verdict={verdict}
         onStartTimer={startTimer}
@@ -188,5 +237,30 @@ const styles = StyleSheet.create({
   },
   note: {
     textAlign: 'center',
+  },
+  carouselHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  carouselArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carouselArrowDisabled: {
+    opacity: 0.35,
+  },
+  carouselArrowText: {
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  carouselLabel: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

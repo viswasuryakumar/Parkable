@@ -8,6 +8,7 @@ import com.parkable.calendar.UsFederalHolidayCalendar;
 import com.parkable.engine.RulesEngine;
 import com.parkable.engine.TemporalRuleEvaluator;
 import com.parkable.lambda.config.EnvConfig;
+import com.parkable.lambda.config.GeoDistance;
 import com.parkable.lambda.config.StorageStack;
 import com.parkable.lambda.port.RuleLookup;
 import com.parkable.lambda.port.StoredRule;
@@ -18,10 +19,14 @@ import com.parkable.model.VerdictResult;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * GET /check?lat&lng — the fast path: answer from stored rules (gov data or
@@ -73,10 +78,41 @@ public class CheckHandler implements RequestHandler<APIGatewayProxyRequestEvent,
                 return Responses.noData();
             }
 
-            List<Rule> rules = stored.stream().map(StoredRule::rule).toList();
-            VerdictResult result = engine.evaluate(rules, at, zone, side);
-            Optional<String> photoUrl = photoUrlFor(result, stored);
-            return Responses.verdict(result, stored, photoUrl, Optional.empty());
+            Map<String, List<StoredRule>> bySign = stored.stream()
+                    .collect(Collectors.groupingBy(StoredRule::scanId, LinkedHashMap::new, Collectors.toList()));
+
+            if (bySign.size() == 1) {
+                List<StoredRule> signRules = bySign.values().iterator().next();
+                List<Rule> rules = signRules.stream().map(StoredRule::rule).toList();
+                VerdictResult result = engine.evaluate(rules, at, zone, side);
+                Optional<String> photoUrl = photoUrlFor(result, signRules);
+                return Responses.verdict(result, signRules, photoUrl, Optional.empty());
+            }
+
+            // Several distinct signs (different scanId - a re-scan of the
+            // SAME physical sign is already collapsed into one scanId by the
+            // content-match supersede at write time) all landed within the
+            // 25m radius. Blending their rules into one RulesEngine.evaluate
+            // call would silently treat two unrelated signs as one - e.g. a
+            // loading-zone sign across the street and the actual curb sign
+            // both feeding one verdict - so each gets its own independent
+            // evaluation instead, closest first.
+            List<Map<String, Object>> signs = bySign.values().stream()
+                    .map(signRules -> {
+                        List<Rule> rules = signRules.stream().map(StoredRule::rule).toList();
+                        VerdictResult result = engine.evaluate(rules, at, zone, side);
+                        Optional<String> photoUrl = photoUrlFor(result, signRules);
+                        double signLat = signRules.get(0).latitude();
+                        double signLng = signRules.get(0).longitude();
+                        double distance = GeoDistance.metersBetween(latitude, longitude, signLat, signLng);
+                        Entry<Double, Map<String, Object>> entry = new SimpleEntry<>(distance,
+                                Responses.signVerdict(result, signRules, photoUrl, signLat, signLng, distance));
+                        return entry;
+                    })
+                    .sorted(Entry.comparingByKey())
+                    .map(Entry::getValue)
+                    .toList();
+            return Responses.multipleSigns(signs);
         } catch (QueryParams.BadRequestException e) {
             return Responses.badRequest(e.getMessage());
         }

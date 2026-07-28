@@ -44,6 +44,31 @@ final class Responses {
      */
     static APIGatewayProxyResponseEvent verdict(
             VerdictResult result, List<StoredRule> stored, Optional<String> photoUrl, Optional<Double> confidence) {
+        return json(200, verdictBody(result, stored, photoUrl, confidence));
+    }
+
+    /**
+     * One sign's verdict, tagged with where it is - used when /check finds
+     * several distinct signs nearby and can't collapse them into a single
+     * answer (see CheckHandler.groupBySign). Shares the same fields as a
+     * single-sign verdict so mobile can reuse one rendering component.
+     */
+    static Map<String, Object> signVerdict(
+            VerdictResult result, List<StoredRule> stored, Optional<String> photoUrl,
+            double lat, double lng, double distanceM) {
+        Map<String, Object> body = verdictBody(result, stored, photoUrl, Optional.empty());
+        body.put("lat", lat);
+        body.put("lng", lng);
+        body.put("distance_m", Math.round(distanceM));
+        return body;
+    }
+
+    static APIGatewayProxyResponseEvent multipleSigns(List<Map<String, Object>> signs) {
+        return json(200, Map.of("signs", signs));
+    }
+
+    private static Map<String, Object> verdictBody(
+            VerdictResult result, List<StoredRule> stored, Optional<String> photoUrl, Optional<Double> confidence) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("verdict", result.verdict().name());
         body.put("reason", result.triggeringRule().map(m -> m.reason()).orElse(null));
@@ -53,7 +78,7 @@ final class Responses {
         body.put("trace", result.trace());
         body.put("photo_url", photoUrl.orElse(null));
         body.put("confidence", confidence.orElse(null));
-        return json(200, body);
+        return body;
     }
 
     static APIGatewayProxyResponseEvent noData() {
