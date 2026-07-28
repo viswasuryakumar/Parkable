@@ -13,6 +13,7 @@ import HistoryScreen from '../screens/HistoryScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import FindMyCarScreen from '../screens/FindMyCarScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
+import AdminScreen from '../screens/AdminScreen';
 import { useTheme } from '../theme/colors';
 import { hasSeenOnboarding } from '../utils/onboarding';
 import { RootStackParamList, TabParamList } from './types';
@@ -85,6 +86,7 @@ export default function RootNavigator() {
         <Stack.Screen name="History" component={HistoryScreen} options={{ headerShown: true, title: 'History' }} />
         <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: true, title: 'Favorites' }} />
         <Stack.Screen name="FindMyCar" component={FindMyCarScreen} options={{ headerShown: true, title: 'Find My Car' }} />
+        <Stack.Screen name="Admin" component={AdminScreen} options={{ headerShown: true, title: 'Admin' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

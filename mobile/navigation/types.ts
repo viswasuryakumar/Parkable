@@ -19,4 +19,5 @@ export type RootStackParamList = {
   History: undefined;
   Favorites: undefined;
   FindMyCar: undefined;
+  Admin: undefined;
 };

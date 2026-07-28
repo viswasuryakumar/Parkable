@@ -131,3 +131,34 @@ export async function reportRule(ruleId: string, reason: string, deviceId: strin
     throw new Error(`Report request failed: ${response.status}`);
   }
 }
+
+export type SignReport = {
+  id: string;
+  rule_id: string;
+  reason: string;
+  device_id: string;
+  reported_at: string;
+};
+
+// GET /reports is gated by the same shared secret ReportsHandler checks
+// (PARKABLE_ADMIN_SECRET) - a wrong or missing secret answers 401/403, which
+// callers must distinguish from a network/server failure.
+export type ReportsResult =
+  | { kind: 'reports'; reports: SignReport[] }
+  | { kind: 'unauthorized' };
+
+export async function fetchReports(adminSecret: string): Promise<ReportsResult> {
+  const response = await fetch(`${buildBaseUrl()}/reports`, {
+    headers: { 'X-Admin-Secret': adminSecret },
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    return { kind: 'unauthorized' };
+  }
+  if (!response.ok) {
+    throw new Error(`Reports request failed: ${response.status}`);
+  }
+
+  const body = (await response.json()) as { reports: SignReport[] };
+  return { kind: 'reports', reports: body.reports };
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Animated, Button, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { VerdictResponse } from '../services/api';
 import { useTheme, VERDICT_COLOR_KEYS } from '../theme/colors';
@@ -129,9 +129,17 @@ export default function VerdictSummary({
             now.
           </Text>
           {startingTimer ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.accent} />
           ) : (
-            <Button title="Start Parking Timer" onPress={onStartTimer} />
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryButton,
+                { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 },
+              ]}
+              onPress={onStartTimer}
+            >
+              <Text style={styles.primaryButtonText}>Start Parking Timer</Text>
+            </Pressable>
           )}
         </View>
       ) : null}
@@ -160,14 +168,17 @@ export default function VerdictSummary({
       ) : null}
 
       {verdict.trace && verdict.trace.length > 0 ? (
-        <View style={styles.traceContainer}>
-          <Pressable onPress={() => setTraceExpanded((prev) => !prev)} hitSlop={8}>
-            <Text style={[styles.traceToggle, { color: theme.accent }]}>
-              {traceExpanded ? 'Hide reasoning ▲' : 'Why? ▼'}
-            </Text>
+        <View style={[styles.traceCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Pressable
+            style={styles.traceToggleRow}
+            onPress={() => setTraceExpanded((prev) => !prev)}
+            hitSlop={8}
+          >
+            <Text style={[styles.traceToggleText, { color: theme.text }]}>Why this verdict?</Text>
+            <Text style={[styles.traceChevron, { color: theme.textMuted }]}>{traceExpanded ? '▲' : '▼'}</Text>
           </Pressable>
           {traceExpanded ? (
-            <View style={[styles.traceBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={[styles.traceBody, { borderTopColor: theme.border }]}>
               {verdict.trace.map((line, index) => (
                 <Text key={index} style={[styles.traceLine, { color: theme.textMuted }]}>
                   {line}
@@ -179,8 +190,16 @@ export default function VerdictSummary({
       ) : null}
 
       {onReport ? (
-        <Pressable onPress={onReport} hitSlop={8}>
-          <Text style={[styles.reportLink, { color: theme.textMuted }]}>Report an issue with this sign</Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.reportButton,
+            { borderColor: theme.border, backgroundColor: pressed ? theme.card : 'transparent' },
+          ]}
+          onPress={onReport}
+          hitSlop={8}
+        >
+          <Text style={styles.reportIcon}>🚩</Text>
+          <Text style={[styles.reportButtonText, { color: theme.textMuted }]}>Report an issue with this sign</Text>
         </Pressable>
       ) : null}
     </Animated.View>
@@ -230,28 +249,60 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  traceContainer: {
+  primaryButton: {
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
     alignItems: 'center',
-    gap: 6,
-    width: '100%',
   },
-  traceToggle: {
-    fontSize: 13,
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  traceCard: {
+    width: '100%',
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  traceToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  traceToggleText: {
+    fontSize: 14,
     fontWeight: '600',
   },
-  traceBox: {
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 10,
-    gap: 4,
-    width: '100%',
+  traceChevron: {
+    fontSize: 11,
+  },
+  traceBody: {
+    borderTopWidth: 1,
+    padding: 14,
+    gap: 6,
   },
   traceLine: {
     fontSize: 12,
     lineHeight: 17,
   },
-  reportLink: {
-    fontSize: 12,
-    textDecorationLine: 'underline',
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  reportIcon: {
+    fontSize: 13,
+  },
+  reportButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

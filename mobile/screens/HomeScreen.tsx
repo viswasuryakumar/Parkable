@@ -66,6 +66,10 @@ export default function HomeScreen() {
           </Pressable>
         ))}
       </View>
+
+      <Pressable style={styles.adminLink} onPress={() => navigation.navigate('Admin')} hitSlop={8}>
+        <Text style={[styles.adminLinkText, { color: theme.textMuted }]}>Review reported signs</Text>
+      </Pressable>
     </View>
   );
 }
@@ -125,5 +129,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  adminLink: {
+    alignSelf: 'center',
+    marginTop: 'auto',
+    paddingVertical: 8,
+  },
+  adminLinkText: {
+    fontSize: 12,
   },
 });

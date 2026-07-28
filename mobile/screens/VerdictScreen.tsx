@@ -1,11 +1,12 @@
 import React from 'react';
-import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CheckResult, VerdictResponse, checkParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
+import AppButton from '../components/AppButton';
 import { useTheme } from '../theme/colors';
 import { addFavorite } from '../utils/favorites';
 import { startParkingSession } from '../utils/parkingSession';
@@ -112,7 +113,7 @@ export default function VerdictScreen() {
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Text style={[styles.title, { color: theme.text }]}>Something went wrong</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
-        <Button title="Try again" onPress={runCheck} />
+        <AppButton title="Try again" variant="primary" onPress={runCheck} />
       </View>
     );
   }
@@ -123,8 +124,8 @@ export default function VerdictScreen() {
         {street ? <Text style={[styles.location, { color: theme.accent }]}>Near {street}</Text> : null}
         <Text style={[styles.title, { color: theme.text }]}>No parking data here yet</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>{state.result.message}</Text>
-        <Button title="Scan the sign" onPress={onScanRequested} />
-        <Button title="Check again" onPress={runCheck} />
+        <AppButton title="Scan the sign" variant="primary" onPress={onScanRequested} />
+        <AppButton title="Check again" onPress={runCheck} />
       </View>
     );
   }
@@ -157,13 +158,13 @@ export default function VerdictScreen() {
             : undefined
         }
       />
-      <Button
+      <AppButton
         title={favoriteSaved ? '★ Saved' : '☆ Save this spot'}
         onPress={saveFavorite}
         disabled={favoriteSaved}
       />
-      <Button title="Check again" onPress={runCheck} />
-      <Button title="Scan a sign instead" onPress={onScanRequested} />
+      <AppButton title="Check again" variant="primary" onPress={runCheck} />
+      <AppButton title="Scan a sign instead" onPress={onScanRequested} />
     </View>
   );
 }
