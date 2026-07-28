@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   FlatList,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -307,6 +308,13 @@ export default function NearbyScreen() {
                     </Pressable>
                   </View>
                 )}
+                {activeScan.rules[0]?.photo_url ? (
+                  <Image
+                    source={{ uri: activeScan.rules[0].photo_url }}
+                    style={styles.signPhoto}
+                    resizeMode="cover"
+                  />
+                ) : null}
                 {activeScan.rules.map((rule, index) => (
                   <View
                     key={rule.rule_id}
@@ -407,6 +415,11 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     gap: 6,
+  },
+  signPhoto: {
+    width: '100%',
+    height: 140,
+    borderRadius: 8,
   },
   rulePanelDivider: {
     borderTopWidth: 1,
