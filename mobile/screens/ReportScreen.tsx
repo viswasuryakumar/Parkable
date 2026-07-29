@@ -1,11 +1,12 @@
 import React from 'react';
-import { ActivityIndicator, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { reportRule } from '../services/api';
 import { getDeviceId } from '../utils/deviceId';
-import { useTheme } from '../theme/colors';
+import { useTheme, SPACING, RADIUS } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/types';
+import AppButton from '../components/AppButton';
 
 const REASON_PRESETS = [
   'Sign is gone / removed',
@@ -49,7 +50,7 @@ export default function ReportScreen() {
         <Text style={[styles.note, { color: theme.textMuted }]}>
           We'll take a look. This doesn't change what other drivers see right away.
         </Text>
-        <Button title="Done" onPress={() => navigation.goBack()} />
+        <AppButton title="Done" variant="primary" onPress={() => navigation.goBack()} />
       </View>
     );
   }
@@ -60,10 +61,27 @@ export default function ReportScreen() {
       <Text style={[styles.note, { color: theme.textMuted }]}>
         What's wrong with this sign's data?
       </Text>
-      <View style={styles.presets}>
-        {REASON_PRESETS.map((preset) => (
-          <Button key={preset} title={preset} onPress={() => setReason(preset)} />
-        ))}
+      <View style={styles.chipRow}>
+        {REASON_PRESETS.map((preset) => {
+          const selected = reason === preset;
+          return (
+            <Pressable
+              key={preset}
+              onPress={() => setReason(preset)}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: selected ? theme.accentSoft : theme.card,
+                  borderColor: selected ? theme.accent : theme.border,
+                },
+              ]}
+            >
+              <Text style={[styles.chipText, { color: selected ? theme.accent : theme.text }]}>
+                {preset}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
       <TextInput
         value={reason}
@@ -81,9 +99,9 @@ export default function ReportScreen() {
       {phase === 'sending' ? (
         <ActivityIndicator />
       ) : (
-        <Button title="Submit report" onPress={submit} disabled={!reason.trim()} />
+        <AppButton title="Submit report" variant="primary" onPress={submit} disabled={!reason.trim()} />
       )}
-      <Button title="Cancel" onPress={() => navigation.goBack()} />
+      <AppButton title="Cancel" onPress={() => navigation.goBack()} />
     </View>
   );
 }
@@ -91,8 +109,8 @@ export default function ReportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    gap: 12,
+    padding: SPACING.xl,
+    gap: SPACING.md,
     justifyContent: 'center',
   },
   title: {
@@ -104,13 +122,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
   },
-  presets: {
-    gap: 6,
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    justifyContent: 'center',
+  },
+  chip: {
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   input: {
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
     minHeight: 80,
     textAlignVertical: 'top',
   },

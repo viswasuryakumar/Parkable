@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
@@ -7,10 +7,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScanResult, VerdictResponse, checkParking, scanParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
-import { useTheme } from '../theme/colors';
+import { useTheme, SPACING } from '../theme/colors';
 import { addHistoryEntry } from '../utils/history';
 import { startParkingSession } from '../utils/parkingSession';
 import type { RootStackParamList } from '../navigation/types';
+import IconBadge from '../components/IconBadge';
+import AppButton from '../components/AppButton';
 
 type FlowState =
   | { phase: 'preview' }
@@ -176,7 +178,7 @@ export default function CameraScreen() {
               : undefined
           }
         />
-        <Button title="Scan another sign" onPress={() => setState({ phase: 'preview' })} />
+        <AppButton title="Scan another sign" onPress={() => setState({ phase: 'preview' })} />
       </View>
     );
   }
@@ -189,7 +191,7 @@ export default function CameraScreen() {
         <Text style={[styles.note, { color: theme.textMuted }]}>
           Get closer, avoid glare, and fit the whole sign in the frame.
         </Text>
-        <Button title="Retake" onPress={() => setState({ phase: 'preview' })} />
+        <AppButton title="Retake" variant="primary" onPress={() => setState({ phase: 'preview' })} />
       </View>
     );
   }
@@ -199,14 +201,14 @@ export default function CameraScreen() {
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
         <Text style={[styles.title, { color: theme.text }]}>Something went wrong</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
-        <Button title="Try again" onPress={() => setState({ phase: 'preview' })} />
+        <AppButton title="Try again" variant="primary" onPress={() => setState({ phase: 'preview' })} />
       </View>
     );
   }
 
   return (
     <View style={[styles.centered, { backgroundColor: theme.background }]}>
-      <Text style={styles.icon}>📷</Text>
+      <IconBadge icon="📷" size={72} />
       <Text style={[styles.title, { color: theme.text }]}>Scan a parking sign</Text>
       <Text style={[styles.note, { color: theme.textMuted }]}>
         Fit the whole sign in the frame. Nothing is uploaded until after you take the photo.
@@ -214,7 +216,7 @@ export default function CameraScreen() {
       {capturing ? (
         <ActivityIndicator size="large" />
       ) : (
-        <Button title="Open Camera" onPress={handleCapture} />
+        <AppButton title="Open Camera" variant="primary" onPress={handleCapture} />
       )}
     </View>
   );
@@ -225,11 +227,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
-    gap: 12,
-  },
-  icon: {
-    fontSize: 48,
+    padding: SPACING.xl,
+    gap: SPACING.md,
   },
   title: {
     fontSize: 24,

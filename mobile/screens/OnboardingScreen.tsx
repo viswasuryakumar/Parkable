@@ -1,10 +1,12 @@
 import React from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useTheme } from '../theme/colors';
+import { useTheme, SPACING, RADIUS } from '../theme/colors';
 import { markOnboardingSeen } from '../utils/onboarding';
 import type { RootStackParamList } from '../navigation/types';
+import IconBadge from '../components/IconBadge';
+import AppButton from '../components/AppButton';
 
 const STEPS = [
   {
@@ -39,7 +41,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.content}>
-        <Text style={styles.icon}>{current.icon}</Text>
+        <IconBadge icon={current.icon} size={88} />
         <Text style={[styles.title, { color: theme.text }]}>{current.title}</Text>
         <Text style={[styles.body, { color: theme.textMuted }]}>{current.body}</Text>
       </View>
@@ -56,11 +58,11 @@ export default function OnboardingScreen() {
       </View>
       <View style={styles.actions}>
         {isLast ? (
-          <Button title="Get started" onPress={finish} />
+          <AppButton title="Get started" variant="primary" onPress={finish} />
         ) : (
           <>
-            <Button title="Skip" onPress={finish} />
-            <Button title="Next" onPress={() => setStep((s) => s + 1)} />
+            <AppButton title="Skip" onPress={finish} />
+            <AppButton title="Next" variant="primary" onPress={() => setStep((s) => s + 1)} />
           </>
         )}
       </View>
@@ -71,17 +73,14 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    padding: SPACING.xl,
     justifyContent: 'space-between',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 14,
-  },
-  icon: {
-    fontSize: 56,
+    gap: SPACING.md + 2,
   },
   title: {
     fontSize: 24,
@@ -96,16 +95,17 @@ const styles = StyleSheet.create({
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: RADIUS.pill,
   },
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: SPACING.sm,
   },
 });

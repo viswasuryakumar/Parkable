@@ -4,9 +4,11 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useTheme } from '../theme/colors';
+import { useTheme, SPACING, RADIUS } from '../theme/colors';
 import { getParkingSession, ParkingSession } from '../utils/parkingSession';
 import type { RootStackParamList, TabParamList } from '../navigation/types';
+import Card from '../components/Card';
+import IconBadge from '../components/IconBadge';
 
 type Navigation = CompositeNavigationProp<
   BottomTabNavigationProp<TabParamList>,
@@ -42,28 +44,21 @@ export default function HomeScreen() {
       </Text>
 
       {session ? (
-        <Pressable
-          style={[styles.sessionCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-          onPress={() => navigation.navigate('FindMyCar')}
-        >
-          <Text style={styles.sessionIcon}>🚗</Text>
+        <Card onPress={() => navigation.navigate('FindMyCar')} style={styles.sessionCard}>
+          <IconBadge icon="🚗" tint="accentSoft" size={44} />
           <View style={styles.sessionBody}>
             <Text style={[styles.sessionTitle, { color: theme.text }]}>You have an active parking session</Text>
             <Text style={[styles.sessionNote, { color: theme.textMuted }]}>Tap to find your car</Text>
           </View>
-        </Pressable>
+        </Card>
       ) : null}
 
       <View style={styles.grid}>
         {QUICK_ACTIONS.map((action) => (
-          <Pressable
-            key={action.target}
-            style={[styles.tile, { backgroundColor: theme.card }]}
-            onPress={() => navigation.navigate(action.target)}
-          >
-            <Text style={styles.tileIcon}>{action.icon}</Text>
+          <Card key={action.target} onPress={() => navigation.navigate(action.target)} style={styles.tile}>
+            <IconBadge icon={action.icon} tint="accentSoft" size={48} />
             <Text style={[styles.tileLabel, { color: theme.text }]}>{action.label}</Text>
-          </Pressable>
+          </Card>
         ))}
       </View>
 
@@ -77,8 +72,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    gap: 16,
+    padding: SPACING.xl,
+    gap: SPACING.lg,
   },
   title: {
     fontSize: 26,
@@ -91,13 +86,8 @@ const styles = StyleSheet.create({
   sessionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-  },
-  sessionIcon: {
-    fontSize: 28,
+    gap: SPACING.md,
+    padding: SPACING.md,
   },
   sessionBody: {
     flex: 1,
@@ -113,17 +103,14 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: SPACING.md,
   },
   tile: {
     width: '47%',
-    borderRadius: 14,
-    padding: 18,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg,
     alignItems: 'center',
-    gap: 8,
-  },
-  tileIcon: {
-    fontSize: 28,
+    gap: SPACING.sm,
   },
   tileLabel: {
     fontSize: 14,
@@ -133,7 +120,7 @@ const styles = StyleSheet.create({
   adminLink: {
     alignSelf: 'center',
     marginTop: 'auto',
-    paddingVertical: 8,
+    paddingVertical: SPACING.sm,
   },
   adminLinkText: {
     fontSize: 12,

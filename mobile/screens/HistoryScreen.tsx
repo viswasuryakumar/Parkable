@@ -1,8 +1,11 @@
 import React from 'react';
-import { Button, FlatList, Image, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { HistoryEntry, clearHistory, getHistory } from '../utils/history';
-import { useTheme } from '../theme/colors';
+import { useTheme, SPACING, RADIUS } from '../theme/colors';
+import Card from '../components/Card';
+import IconBadge from '../components/IconBadge';
+import AppButton from '../components/AppButton';
 
 const VERDICT_LABELS: Record<string, string> = {
   PARKABLE: 'Parkable',
@@ -48,6 +51,7 @@ export default function HistoryScreen() {
   if (entries.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <IconBadge icon="🕘" />
         <Text style={[styles.title, { color: theme.text }]}>No scans yet</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>
           Signs you scan will show up here.
@@ -66,11 +70,11 @@ export default function HistoryScreen() {
           const colorKey = item.verdict.verdict === 'PARKABLE' ? 'parkable'
             : item.verdict.verdict === 'NOT_PARKABLE' ? 'notParkable' : 'depends';
           return (
-            <View style={[styles.card, { backgroundColor: theme.card }]}>
+            <Card style={styles.card}>
               {item.verdict.photo_url ? (
                 <Image source={{ uri: item.verdict.photo_url }} style={styles.thumb} />
               ) : (
-                <View style={[styles.thumb, styles.thumbPlaceholder, { backgroundColor: theme.border }]} />
+                <View style={[styles.thumb, { backgroundColor: theme.border }]} />
               )}
               <View style={styles.cardBody}>
                 <Text style={[styles.verdictLabel, { color: theme[colorKey] }]}>
@@ -83,11 +87,11 @@ export default function HistoryScreen() {
                 ) : null}
                 <Text style={[styles.when, { color: theme.textMuted }]}>{formatWhen(item.scannedAt)}</Text>
               </View>
-            </View>
+            </Card>
           );
         }}
       />
-      <Button title="Clear history" onPress={handleClear} />
+      <AppButton title="Clear history" onPress={handleClear} />
     </View>
   );
 }
@@ -95,15 +99,15 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    gap: 12,
+    padding: SPACING.lg,
+    gap: SPACING.md,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
-    gap: 8,
+    padding: SPACING.xl,
+    gap: SPACING.sm,
   },
   title: {
     fontSize: 20,
@@ -113,21 +117,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   listContent: {
-    gap: 8,
+    gap: SPACING.sm,
   },
   card: {
     flexDirection: 'row',
-    borderRadius: 12,
-    overflow: 'hidden',
-    gap: 10,
-    padding: 10,
+    gap: SPACING.sm + 2,
+    padding: SPACING.sm + 2,
   },
   thumb: {
     width: 64,
     height: 64,
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
   },
-  thumbPlaceholder: {},
   cardBody: {
     flex: 1,
     justifyContent: 'center',

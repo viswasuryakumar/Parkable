@@ -2,7 +2,6 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Button,
   FlatList,
   Image,
   Platform,
@@ -14,8 +13,9 @@ import {
 import * as Location from 'expo-location';
 import { NearbyRule, nearbyParking } from '../services/api';
 import { describeLocation, metersBetween } from '../utils/geo';
-import { useTheme } from '../theme/colors';
+import { useTheme, SPACING } from '../theme/colors';
 import NearbyMap from '../components/NearbyMap';
+import AppButton from '../components/AppButton';
 import { parseDaysLabel, parseStartTime, nextOccurrence } from '../utils/schedule';
 import { scheduleNotification } from '../utils/notifications';
 
@@ -197,7 +197,7 @@ export default function NearbyScreen() {
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
         <Text style={[styles.title, { color: theme.text }]}>Something went wrong</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
-        <Button title="Try again" onPress={load} />
+        <AppButton title="Try again" variant="primary" onPress={load} />
       </View>
     );
   }
@@ -210,7 +210,7 @@ export default function NearbyScreen() {
           No parking rules are recorded within a kilometre of you yet. Scan a sign to add the
           first one.
         </Text>
-        <Button title="Refresh" onPress={load} />
+        <AppButton title="Refresh" variant="primary" onPress={load} />
       </View>
     );
   }
@@ -230,10 +230,14 @@ export default function NearbyScreen() {
           {totalSigns === 1 ? '' : 's'} near you
         </Text>
         {MAP_VIEW_SUPPORTED ? (
-          <Button
-            title={viewMode === 'list' ? '🗺️ Map' : '☰ List'}
+          <Pressable
             onPress={() => setViewMode((prev) => (prev === 'list' ? 'map' : 'list'))}
-          />
+            style={[styles.viewToggle, { backgroundColor: theme.accentSoft }]}
+          >
+            <Text style={[styles.viewToggleText, { color: theme.accent }]}>
+              {viewMode === 'list' ? '🗺️ Map' : '☰ List'}
+            </Text>
+          </Pressable>
         ) : null}
       </View>
       {viewMode === 'map' ? (
@@ -273,7 +277,7 @@ export default function NearbyScreen() {
               [group.key]: Math.max(0, Math.min(group.scans.length - 1, scanIndex + delta)),
             }));
           return (
-            <View style={[styles.signCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.signCard, { backgroundColor: theme.card, shadowColor: theme.text }]}>
               <View style={[styles.signPost, { backgroundColor: theme.textMuted }]} />
               <View style={styles.signBody}>
                 <Text style={[styles.cardLocation, { color: theme.accent }]}>{location}</Text>
@@ -344,7 +348,7 @@ export default function NearbyScreen() {
         contentContainerStyle={styles.listContent}
       />
       )}
-      <Button title="Refresh" onPress={load} />
+      <AppButton title="Refresh" onPress={load} />
     </View>
   );
 }
@@ -372,6 +376,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flexShrink: 1,
   },
+  viewToggle: {
+    borderRadius: 999,
+    paddingVertical: SPACING.xs + 2,
+    paddingHorizontal: SPACING.md,
+  },
+  viewToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
   listContent: {
     gap: 8,
   },
@@ -382,6 +395,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 12,
     overflow: 'hidden',
+    ...Platform.select({
+      web: { boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)' },
+      android: { elevation: 2 },
+      default: { shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+    }),
   },
   carouselHeader: {
     flexDirection: 'row',

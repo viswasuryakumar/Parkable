@@ -1,10 +1,13 @@
 import React from 'react';
-import { ActivityIndicator, Button, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Favorite, getFavorites, removeFavorite } from '../utils/favorites';
 import { CheckResult, checkParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
-import { useTheme } from '../theme/colors';
+import { useTheme, SPACING } from '../theme/colors';
+import Card from '../components/Card';
+import IconBadge from '../components/IconBadge';
+import AppButton from '../components/AppButton';
 
 export default function FavoritesScreen() {
   const theme = useTheme();
@@ -45,6 +48,7 @@ export default function FavoritesScreen() {
   if (favorites.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <IconBadge icon="⭐" />
         <Text style={[styles.title, { color: theme.text }]}>No favorites yet</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>
           Save a spot from the Check tab (e.g. home or work) to quickly re-check it later.
@@ -62,10 +66,10 @@ export default function FavoritesScreen() {
         renderItem={({ item }) => {
           const result = results[item.id];
           return (
-            <View style={[styles.card, { backgroundColor: theme.card }]}>
+            <Card style={styles.card}>
               <View style={styles.cardHeader}>
                 <Text style={[styles.label, { color: theme.text }]}>{item.label}</Text>
-                <Button title="Remove" onPress={() => handleRemove(item.id)} />
+                <AppButton title="Remove" onPress={() => handleRemove(item.id)} />
               </View>
               {checking === item.id ? (
                 <ActivityIndicator />
@@ -74,9 +78,9 @@ export default function FavoritesScreen() {
               ) : result?.kind === 'no_data' ? (
                 <Text style={[styles.note, { color: theme.textMuted }]}>{result.message}</Text>
               ) : (
-                <Button title="Check now" onPress={() => handleCheck(item)} />
+                <AppButton title="Check now" variant="primary" onPress={() => handleCheck(item)} />
               )}
-            </View>
+            </Card>
           );
         }}
       />
@@ -87,14 +91,14 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: SPACING.lg,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
-    gap: 8,
+    padding: SPACING.xl,
+    gap: SPACING.sm,
   },
   title: {
     fontSize: 20,
@@ -104,12 +108,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   listContent: {
-    gap: 10,
+    gap: SPACING.md,
   },
   card: {
-    borderRadius: 12,
-    padding: 14,
-    gap: 10,
+    padding: SPACING.md + 2,
+    gap: SPACING.md,
   },
   cardHeader: {
     flexDirection: 'row',

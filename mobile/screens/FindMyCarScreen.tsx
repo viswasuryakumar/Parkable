@@ -1,10 +1,12 @@
 import React from 'react';
-import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { ParkingSession, clearParkingSession, getParkingSession } from '../utils/parkingSession';
 import { describeLocation, metersBetween } from '../utils/geo';
-import { useTheme } from '../theme/colors';
+import { useTheme, SPACING } from '../theme/colors';
+import IconBadge from '../components/IconBadge';
+import AppButton from '../components/AppButton';
 
 function formatRemaining(validUntil: string | null): string | null {
   if (!validUntil) {
@@ -59,6 +61,7 @@ export default function FindMyCarScreen() {
   if (session === null) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <IconBadge icon="🚗" />
         <Text style={[styles.title, { color: theme.text }]}>No active parking session</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>
           Start a parking timer from the Check or Scan tab to track where you left your car.
@@ -74,7 +77,7 @@ export default function FindMyCarScreen() {
 
   return (
     <View style={[styles.centered, { backgroundColor: theme.background }]}>
-      <Text style={styles.pin}>📍</Text>
+      <IconBadge icon="📍" tint="parkableSoft" size={72} />
       <Text style={[styles.title, { color: theme.text }]}>Your car is here</Text>
       {location ? (
         <Text style={[styles.location, { color: theme.accent }]}>{location}</Text>
@@ -82,7 +85,7 @@ export default function FindMyCarScreen() {
         <ActivityIndicator />
       )}
       {remaining ? <Text style={[styles.note, { color: theme.textMuted }]}>{remaining}</Text> : null}
-      <Button title="I've moved my car" onPress={handleClear} />
+      <AppButton title="I've moved my car" variant="primary" onPress={handleClear} />
     </View>
   );
 }
@@ -92,11 +95,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
-    gap: 12,
-  },
-  pin: {
-    fontSize: 48,
+    padding: SPACING.xl,
+    gap: SPACING.md,
   },
   title: {
     fontSize: 22,
