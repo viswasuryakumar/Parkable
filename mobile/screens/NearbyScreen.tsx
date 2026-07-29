@@ -19,9 +19,11 @@ import AppButton from '../components/AppButton';
 import { parseDaysLabel, parseStartTime, nextOccurrence } from '../utils/schedule';
 import { scheduleNotification } from '../utils/notifications';
 
-// react-native-maps has no web renderer - the toggle itself only exists on
-// native (NearbyMap.web.tsx is a safe no-op if it were ever reached anyway).
-const MAP_VIEW_SUPPORTED = Platform.OS !== 'web';
+// Both platforms have a real map now: react-native-maps on native,
+// Leaflet + OpenStreetMap tiles on web (NearbyMap.web.tsx) - different
+// underlying libraries (react-native-maps has no web renderer at all), same
+// toggle either way.
+const MAP_VIEW_SUPPORTED = true;
 // Notifications need a dev-client build and don't fire on web at all.
 const REMINDERS_SUPPORTED = Platform.OS !== 'web';
 const REMINDER_LEAD_MS = 10 * 60 * 60_000; // ~night before a morning restriction
@@ -315,8 +317,8 @@ export default function NearbyScreen() {
                 {activeScan.rules[0]?.photo_url ? (
                   <Image
                     source={{ uri: activeScan.rules[0].photo_url }}
-                    style={styles.signPhoto}
-                    resizeMode="cover"
+                    style={[styles.signPhoto, { backgroundColor: theme.border }]}
+                    resizeMode="contain"
                   />
                 ) : null}
                 {activeScan.rules.map((rule, index) => (
