@@ -1,7 +1,7 @@
 import React from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -51,18 +51,7 @@ export default function CameraScreen() {
       // camera app worked fine. Delegating to that stock app sidesteps
       // whatever CameraX-specific issue this device (and possibly others)
       // has, at the cost of losing the custom in-app frame-guide overlay.
-      // On web, expo-image-picker's asset.uri is ALWAYS a blob: URL (see its
-      // own web source, ExponentImagePicker.web.ts - readFile() always calls
-      // URL.createObjectURL, base64 is only populated if explicitly
-      // requested) - never a data: URL, contrary to what this code assumed
-      // before. Requesting base64 here is the only way to actually get
-      // usable image bytes out of it on web; on native this option is
-      // ignored below in favor of a separate FileSystem re-read (deliberate
-      // - don't trust an in-process native encode step more than necessary).
-      const captured = await ImagePicker.launchCameraAsync({
-        quality: 0.85,
-        base64: Platform.OS === 'web',
-      });
+      const captured = await ImagePicker.launchCameraAsync({ quality: 1 });
       if (captured.canceled) {
         return;
       }
@@ -70,10 +59,17 @@ export default function CameraScreen() {
 
       setState({ phase: 'uploading' });
 
-      const rawBase64 = Platform.OS === 'web'
-        ? asset.base64
-        : await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
-      if (!rawBase64) {
+      // Resize + compress before upload, on both platforms identically (this
+      // module has a real web implementation, unlike the old approach's
+      // native/web split). A full-resolution phone photo is routinely
+      // several MB - on a slow connection that either takes minutes or the
+      // request just dies outright ("Failed to fetch", no HTTP response at
+      // all, found live on a near-dead mobile signal). 1600px wide is still
+      // plenty legible for reading sign text, and cuts the typical payload
+      // by an order of magnitude regardless of network conditions.
+      const manipulated = await ImageManipulator.manipulate(asset.uri).resize({ width: 1600 }).renderAsync();
+      const saved = await manipulated.saveAsync({ base64: true, compress: 0.7, format: SaveFormat.JPEG });
+      if (!saved.base64) {
         setState({ phase: 'error', message: 'Could not read the captured photo. Try again.' });
         return;
       }
@@ -91,8 +87,8 @@ export default function CameraScreen() {
       });
       const { latitude, longitude } = position.coords;
       const result: ScanResult = await scanParking({
-        photo_base64: rawBase64,
-        media_type: asset.mimeType ?? 'image/jpeg',
+        photo_base64: saved.base64,
+        media_type: 'image/jpeg',
         lat: latitude,
         lng: longitude,
       });
