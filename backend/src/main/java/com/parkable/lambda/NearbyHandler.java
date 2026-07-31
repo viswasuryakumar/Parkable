@@ -31,7 +31,12 @@ import java.util.stream.Collectors;
  */
 public class NearbyHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
-    static final double DEFAULT_RADIUS_METERS = 1000.0;
+    // 1000m (previous default) is a 10-15 minute walk - a sign that far away
+    // doesn't read as "near you" to a driver standing on one specific block,
+    // even though it's technically within range. 300m is closer to "look
+    // around, what's on this block" (max radius stays wide for a future
+    // explicit "search wider" ask, not the everyday default).
+    static final double DEFAULT_RADIUS_METERS = 300.0;
     static final double MAX_RADIUS_METERS = 2000.0;
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("h:mm a", Locale.US);

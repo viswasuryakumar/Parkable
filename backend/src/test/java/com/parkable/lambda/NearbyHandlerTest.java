@@ -98,7 +98,7 @@ class NearbyHandlerTest {
     }
 
     @Test
-    void radiusDefaultsTo1000AndIsCappedAt2000() {
+    void radiusDefaultsTo300AndIsCappedAt2000() {
         AtomicReference<Double> seenRadius = new AtomicReference<>();
         NearbyHandler handler = new NearbyHandler((lat, lng, radius) -> {
             seenRadius.set(radius);

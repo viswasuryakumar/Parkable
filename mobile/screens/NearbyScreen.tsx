@@ -253,8 +253,8 @@ export default function NearbyScreen() {
       ) : !hasSigns ? (
         <View style={styles.emptyList}>
           <Text style={[styles.note, { color: theme.textMuted }]}>
-            No parking rules are recorded within a kilometre of you yet. Scan a sign to add the
-            first one - or check the map, your location is already on it.
+            No parking rules are recorded near you yet. Scan a sign to add the first one - or
+            check the map, your location is already on it.
           </Text>
         </View>
       ) : (
