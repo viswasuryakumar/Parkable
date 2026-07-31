@@ -130,10 +130,22 @@ export default function CameraScreen() {
       // Re-check at THIS instant (when you actually park) rather than
       // trusting the scan-time verdict - walking back to the car takes time.
       const result = await checkParking(state.lat, state.lng);
-      if (result.kind === 'verdict') {
-        setState({ phase: 'verdict', verdict: result.verdict, lat: state.lat, lng: state.lng });
+      // /check can now answer with several distinct signs (see
+      // CheckHandler.groupBySign) - this screen only ever shows ONE verdict
+      // (the sign that was just scanned), so pick that same sign back out
+      // by rule_id rather than silently doing nothing when the response
+      // shape isn't the plain single-verdict one anymore. Falls back to the
+      // closest sign if the rule_id can't be matched (e.g. it just expired).
+      const verdict =
+        result.kind === 'verdict'
+          ? result.verdict
+          : result.kind === 'multiple_signs'
+            ? (result.signs.find((s) => s.rule_id === state.verdict.rule_id) ?? result.signs[0])
+            : undefined;
+      if (verdict) {
+        setState({ phase: 'verdict', verdict, lat: state.lat, lng: state.lng });
         setTimerStarted(true);
-        startParkingSession(state.lat, state.lng, result.verdict.valid_until ?? null).catch(() => {});
+        startParkingSession(state.lat, state.lng, verdict.valid_until ?? null).catch(() => {});
       }
     } catch {
       // Leave the prior verdict on screen; the button just stays available to retry.

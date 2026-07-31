@@ -82,23 +82,34 @@ export default function VerdictScreen() {
     if (state.phase !== 'result') {
       return;
     }
+    // Which sign the driver is actually looking at right now (and pressed
+    // "Start Timer" for) - captured before the re-check so the fresh
+    // result can be matched back to the SAME sign, not just whichever one
+    // happens to be closest.
+    const activeRuleId =
+      state.result.kind === 'multiple_signs'
+        ? state.result.signs[Math.min(signIndex, state.result.signs.length - 1)]?.rule_id
+        : state.result.kind === 'verdict'
+          ? state.result.verdict.rule_id
+          : undefined;
     setStartingTimer(true);
     try {
       // Re-check at THIS instant (when you actually park), not the moment
       // the screen first loaded - the two are rarely the same.
       const result = await checkParking(state.lat, state.lng);
       setState({ phase: 'result', result, lat: state.lat, lng: state.lng });
-      // Best-effort: stay on the same sign if the refreshed result still has
-      // that many signs, otherwise fall back to the closest one rather than
-      // pointing at an index that no longer exists.
-      setSignIndex((prev) => (result.kind === 'multiple_signs' && prev < result.signs.length ? prev : 0));
+
+      let validUntil: string | null | undefined;
+      if (result.kind === 'verdict') {
+        validUntil = result.verdict.valid_until;
+        setSignIndex(0);
+      } else if (result.kind === 'multiple_signs') {
+        const matchedIndex = result.signs.findIndex((s) => s.rule_id === activeRuleId);
+        const resolvedIndex = matchedIndex >= 0 ? matchedIndex : 0;
+        setSignIndex(resolvedIndex);
+        validUntil = result.signs[resolvedIndex]?.valid_until;
+      }
       setTimerStarted(true);
-      const validUntil =
-        result.kind === 'verdict'
-          ? result.verdict.valid_until
-          : result.kind === 'multiple_signs'
-            ? result.signs[0]?.valid_until
-            : undefined;
       if (validUntil !== undefined) {
         startParkingSession(state.lat, state.lng, validUntil ?? null).catch(() => {});
       }
