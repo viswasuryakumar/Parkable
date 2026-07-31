@@ -21,21 +21,6 @@ type FlowState =
   | { phase: 'retake'; message: string }
   | { phase: 'error'; message: string };
 
-/**
- * Native returns bare base64 (read separately via expo-file-system - see
- * handleCapture); the web build returns a full data URL
- * (data:image/png;base64,...). The API contract wants bare base64 plus an
- * explicit media_type, so normalize here and derive the real type from the
- * prefix when present (web captures PNG, not JPEG).
- */
-function normalizePhoto(raw: string): { base64: string; mediaType: string } {
-  const match = raw.match(/^data:(image\/[a-z+.-]+);base64,(.*)$/s);
-  if (match) {
-    return { mediaType: match[1], base64: match[2] };
-  }
-  return { mediaType: 'image/jpeg', base64: raw };
-}
-
 export default function CameraScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -66,7 +51,18 @@ export default function CameraScreen() {
       // camera app worked fine. Delegating to that stock app sidesteps
       // whatever CameraX-specific issue this device (and possibly others)
       // has, at the cost of losing the custom in-app frame-guide overlay.
-      const captured = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+      // On web, expo-image-picker's asset.uri is ALWAYS a blob: URL (see its
+      // own web source, ExponentImagePicker.web.ts - readFile() always calls
+      // URL.createObjectURL, base64 is only populated if explicitly
+      // requested) - never a data: URL, contrary to what this code assumed
+      // before. Requesting base64 here is the only way to actually get
+      // usable image bytes out of it on web; on native this option is
+      // ignored below in favor of a separate FileSystem re-read (deliberate
+      // - don't trust an in-process native encode step more than necessary).
+      const captured = await ImagePicker.launchCameraAsync({
+        quality: 0.85,
+        base64: Platform.OS === 'web',
+      });
       if (captured.canceled) {
         return;
       }
@@ -74,16 +70,9 @@ export default function CameraScreen() {
 
       setState({ phase: 'uploading' });
 
-      // Read the file back separately rather than requesting base64 from
-      // the picker directly - same reasoning as the capture path itself:
-      // don't trust an in-process native encode step more than necessary.
-      // Web already returns a data: URL directly from the picker.
-      let rawBase64: string | undefined;
-      if (Platform.OS === 'web') {
-        rawBase64 = asset.uri;
-      } else {
-        rawBase64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
-      }
+      const rawBase64 = Platform.OS === 'web'
+        ? asset.base64
+        : await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
       if (!rawBase64) {
         setState({ phase: 'error', message: 'Could not read the captured photo. Try again.' });
         return;
@@ -100,11 +89,10 @@ export default function CameraScreen() {
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      const { base64, mediaType } = normalizePhoto(rawBase64);
       const { latitude, longitude } = position.coords;
       const result: ScanResult = await scanParking({
-        photo_base64: base64,
-        media_type: mediaType,
+        photo_base64: rawBase64,
+        media_type: asset.mimeType ?? 'image/jpeg',
         lat: latitude,
         lng: longitude,
       });
