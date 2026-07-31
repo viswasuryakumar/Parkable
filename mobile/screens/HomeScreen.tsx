@@ -4,7 +4,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useTheme, SPACING, RADIUS } from '../theme/colors';
+import { useTheme, SPACING, RADIUS, Theme } from '../theme/colors';
 import { getParkingSession, ParkingSession } from '../utils/parkingSession';
 import type { RootStackParamList, TabParamList } from '../navigation/types';
 import Card from '../components/Card';
@@ -15,14 +15,22 @@ type Navigation = CompositeNavigationProp<
   NativeStackNavigationProp<RootStackParamList>
 >;
 
-type Action = { label: string; icon: string; target: keyof TabParamList | 'History' | 'Favorites' };
+type Action = {
+  label: string;
+  icon: string;
+  target: keyof TabParamList | 'History' | 'Favorites';
+  tint: keyof Theme;
+};
 
+// A distinct tint per tile instead of one flat repeated color - purely
+// decorative (violet/teal/rose carry no verdict meaning, unlike
+// parkable/notParkable/depends, which stay reserved for actual verdicts).
 const QUICK_ACTIONS: Action[] = [
-  { label: 'Check here', icon: '🅿️', target: 'Check' },
-  { label: 'Scan a sign', icon: '📷', target: 'Scan' },
-  { label: 'Nearby signs', icon: '📍', target: 'Nearby' },
-  { label: 'History', icon: '🕘', target: 'History' },
-  { label: 'Favorites', icon: '⭐', target: 'Favorites' },
+  { label: 'Check here', icon: '🅿️', target: 'Check', tint: 'accentSoft' },
+  { label: 'Scan a sign', icon: '📷', target: 'Scan', tint: 'violetSoft' },
+  { label: 'Nearby signs', icon: '📍', target: 'Nearby', tint: 'tealSoft' },
+  { label: 'History', icon: '🕘', target: 'History', tint: 'dependsSoft' },
+  { label: 'Favorites', icon: '⭐', target: 'Favorites', tint: 'roseSoft' },
 ];
 
 export default function HomeScreen() {
@@ -56,7 +64,7 @@ export default function HomeScreen() {
       <View style={styles.grid}>
         {QUICK_ACTIONS.map((action) => (
           <Card key={action.target} onPress={() => navigation.navigate(action.target)} style={styles.tile}>
-            <IconBadge icon={action.icon} tint="accentSoft" size={48} />
+            <IconBadge icon={action.icon} tint={action.tint} size={48} />
             <Text style={[styles.tileLabel, { color: theme.text }]}>{action.label}</Text>
           </Card>
         ))}

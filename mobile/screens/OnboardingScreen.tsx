@@ -2,27 +2,36 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useTheme, SPACING, RADIUS } from '../theme/colors';
+import { useTheme, SPACING, RADIUS, Theme } from '../theme/colors';
 import { markOnboardingSeen } from '../utils/onboarding';
 import type { RootStackParamList } from '../navigation/types';
 import IconBadge from '../components/IconBadge';
 import AppButton from '../components/AppButton';
 
-const STEPS = [
+const STEPS: { icon: string; title: string; body: string; tint: keyof Theme }[] = [
   {
     icon: '🅿️',
     title: 'Can I park here right now?',
     body: "Parkable answers with a rule, not a guess - every verdict traces back to an actual sign or government record, never an AI's opinion.",
+    tint: 'accentSoft',
   },
   {
     icon: '📷',
     title: 'Scan a sign, get a verdict',
     body: "Point your camera at a parking sign. We read it, and a plain rules engine - not the AI - decides the verdict.",
+    tint: 'violetSoft',
+  },
+  {
+    icon: '🗺️',
+    title: 'See every sign on the map',
+    body: "Browse a live map of everything nearby - government records and driver scans together - so you always know what's around you.",
+    tint: 'tealSoft',
   },
   {
     icon: '🤔',
     title: 'Honest uncertainty',
     body: "If a sign is too blurry to read confidently, we'll say so and ask for a retake - never a confident wrong answer.",
+    tint: 'dependsSoft',
   },
 ];
 
@@ -41,7 +50,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.content}>
-        <IconBadge icon={current.icon} size={88} />
+        <IconBadge icon={current.icon} tint={current.tint} size={88} />
         <Text style={[styles.title, { color: theme.text }]}>{current.title}</Text>
         <Text style={[styles.body, { color: theme.textMuted }]}>{current.body}</Text>
       </View>

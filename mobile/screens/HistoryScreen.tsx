@@ -51,7 +51,7 @@ export default function HistoryScreen() {
   if (entries.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
-        <IconBadge icon="🕘" />
+        <IconBadge icon="🕘" tint="dependsSoft" />
         <Text style={[styles.title, { color: theme.text }]}>No scans yet</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>
           Signs you scan will show up here.

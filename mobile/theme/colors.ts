@@ -23,6 +23,17 @@ export type Theme = {
   parkableSoft: string;
   notParkableSoft: string;
   dependsSoft: string;
+  // Purely decorative accents - no verdict meaning attached (unlike
+  // parkable/notParkable/depends, which must stay reserved for actual
+  // verdicts so a color never silently implies "this is safe/unsafe to
+  // park"). Used to give Home's feature tiles visual variety instead of
+  // every tile reading as the same flat blue.
+  violet: string;
+  violetSoft: string;
+  teal: string;
+  tealSoft: string;
+  rose: string;
+  roseSoft: string;
 };
 
 const light: Theme = {
@@ -39,6 +50,12 @@ const light: Theme = {
   parkableSoft: '#dcfce7',
   notParkableSoft: '#fee2e2',
   dependsSoft: '#fef3c7',
+  violet: '#7c3aed',
+  violetSoft: '#ede9fe',
+  teal: '#0d9488',
+  tealSoft: '#ccfbf1',
+  rose: '#e11d48',
+  roseSoft: '#ffe4e6',
 };
 
 const dark: Theme = {
@@ -55,6 +72,12 @@ const dark: Theme = {
   parkableSoft: '#14532d',
   notParkableSoft: '#5f1d1d',
   dependsSoft: '#5c3d0a',
+  violet: '#a78bfa',
+  violetSoft: '#3b2a6b',
+  teal: '#2dd4bf',
+  tealSoft: '#0f3d3a',
+  rose: '#fb7185',
+  roseSoft: '#5c1a28',
 };
 
 export function useTheme(): Theme {

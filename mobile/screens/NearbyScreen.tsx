@@ -204,32 +204,21 @@ export default function NearbyScreen() {
     );
   }
 
-  if (state.groups.length === 0) {
-    return (
-      <View style={[styles.centered, { backgroundColor: theme.background }]}>
-        <Text style={[styles.title, { color: theme.text }]}>No rules nearby</Text>
-        <Text style={[styles.note, { color: theme.textMuted }]}>
-          No parking rules are recorded within a kilometre of you yet. Scan a sign to add the
-          first one.
-        </Text>
-        <AppButton title="Refresh" variant="primary" onPress={load} />
-      </View>
-    );
-  }
-
   const { userLat, userLng } = state;
   const totalRules = state.groups.reduce(
     (sum, g) => sum + g.scans.reduce((scanSum, s) => scanSum + s.rules.length, 0),
     0
   );
   const totalSigns = state.groups.reduce((sum, g) => sum + g.scans.length, 0);
+  const hasSigns = totalSigns > 0;
 
   return (
     <View style={[styles.listContainer, { backgroundColor: theme.background }]}>
       <View style={styles.headingRow}>
         <Text style={[styles.heading, { color: theme.text }]}>
-          {totalRules} rule{totalRules === 1 ? '' : 's'} on {totalSigns} sign
-          {totalSigns === 1 ? '' : 's'} near you
+          {hasSigns
+            ? `${totalRules} rule${totalRules === 1 ? '' : 's'} on ${totalSigns} sign${totalSigns === 1 ? '' : 's'} near you`
+            : 'No rules nearby yet'}
         </Text>
         {MAP_VIEW_SUPPORTED ? (
           <Pressable
@@ -261,6 +250,13 @@ export default function NearbyScreen() {
             }))
           )}
         />
+      ) : !hasSigns ? (
+        <View style={styles.emptyList}>
+          <Text style={[styles.note, { color: theme.textMuted }]}>
+            No parking rules are recorded within a kilometre of you yet. Scan a sign to add the
+            first one - or check the map, your location is already on it.
+          </Text>
+        </View>
       ) : (
       <FlatList
         data={state.groups}
@@ -389,6 +385,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     gap: 8,
+  },
+  emptyList: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
   },
   // A single visual "post" strip down the left edge, tying every panel on
   // this card to one physical sign board rather than reading as unrelated

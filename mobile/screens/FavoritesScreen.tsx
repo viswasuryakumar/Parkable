@@ -48,7 +48,7 @@ export default function FavoritesScreen() {
   if (favorites.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
-        <IconBadge icon="⭐" />
+        <IconBadge icon="⭐" tint="roseSoft" />
         <Text style={[styles.title, { color: theme.text }]}>No favorites yet</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>
           Save a spot from the Check tab (e.g. home or work) to quickly re-check it later.
