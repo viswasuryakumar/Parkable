@@ -200,6 +200,33 @@ class ScanHandlerTest {
     }
 
     @Test
+    void extractorFailureReturns503WithCorsHeaderInsteadOfAnUncaughtException() {
+        // The real bug this guards: OpenRouter returning a 402 (quota
+        // exhausted) - or any other extractor RuntimeException - used to
+        // propagate uncaught out of handleRequest, skipping Responses.json()
+        // entirely and, with it, the CORS header every other response
+        // carries. The browser then reported this as an opaque "Failed to
+        // fetch" with zero usable information, on every single scan,
+        // regardless of network quality.
+        InMemoryRuleRepository repository = new InMemoryRuleRepository();
+        VisionExtractor alwaysFails = image -> {
+            throw new RuntimeException("OpenRouter returned HTTP 402: Insufficient credits");
+        };
+        ScanHandler handler = new ScanHandler(alwaysFails, repository, FIXED_CLOCK);
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(
+                new APIGatewayProxyRequestEvent().withBody(validBody()), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(503);
+        assertThat(response.getHeaders()).containsEntry("Access-Control-Allow-Origin", "*");
+        assertThat(response.getBody()).contains("SERVICE_UNAVAILABLE");
+        // The raw upstream error (which may include provider account
+        // details) must never reach the client - only the generic message.
+        assertThat(response.getBody()).doesNotContain("OpenRouter", "402", "credits");
+        assertThat(repository.findAll()).isEmpty();
+    }
+
+    @Test
     void badBodiesReturn400() {
         ScanHandler handler = new ScanHandler(image -> validSuccess(), new InMemoryRuleRepository(), FIXED_CLOCK);
 

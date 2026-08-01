@@ -94,6 +94,8 @@ export default function CameraScreen() {
       });
       if (result.kind === 'needs_review') {
         setState({ phase: 'retake', message: result.message });
+      } else if (result.kind === 'service_unavailable') {
+        setState({ phase: 'error', message: result.message });
       } else {
         setTimerStarted(false);
         setState({ phase: 'verdict', verdict: result.verdict, lat: latitude, lng: longitude });

@@ -95,6 +95,17 @@ final class Responses {
         return json(422, Map.of("status", "NEEDS_REVIEW", "message", message));
     }
 
+    /**
+     * The extraction pipeline itself failed (vision provider quota/auth/5xx,
+     * or any other unexpected failure) - distinct from NEEDS_REVIEW, which
+     * means the pipeline worked but the photo wasn't good enough. The raw
+     * exception message (which may contain upstream provider details) never
+     * reaches the client; only this generic, honest message does.
+     */
+    static APIGatewayProxyResponseEvent serviceUnavailable(String message) {
+        return json(503, Map.of("status", "SERVICE_UNAVAILABLE", "message", message));
+    }
+
     static APIGatewayProxyResponseEvent json(int statusCode, Object body) {
         try {
             return new APIGatewayProxyResponseEvent()

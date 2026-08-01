@@ -46,12 +46,21 @@ export type ScanRequest = {
 // POST /scan answers 422 when extraction could not confidently read the sign.
 // Also a first-class outcome — the honest "retake the photo" path the whole
 // architecture is built around, so it must not surface as a thrown error.
+// 503 is a different first-class outcome: the pipeline itself failed
+// (vision provider quota/auth/5xx) rather than the photo being unclear -
+// retrying makes sense as-is, "retake the photo" would be misleading advice.
 export type ScanResult =
   | { kind: 'verdict'; verdict: VerdictResponse }
-  | { kind: 'needs_review'; message: string };
+  | { kind: 'needs_review'; message: string }
+  | { kind: 'service_unavailable'; message: string };
 
 export type NeedsReviewResponse = {
   status: 'NEEDS_REVIEW';
+  message: string;
+};
+
+export type ServiceUnavailableResponse = {
+  status: 'SERVICE_UNAVAILABLE';
   message: string;
 };
 
@@ -90,6 +99,14 @@ export async function scanParking(payload: ScanRequest): Promise<ScanResult> {
     return {
       kind: 'needs_review',
       message: body.message ?? 'The sign could not be read confidently. Please retake the photo.',
+    };
+  }
+
+  if (response.status === 503) {
+    const body = (await response.json().catch(() => ({}))) as Partial<ServiceUnavailableResponse>;
+    return {
+      kind: 'service_unavailable',
+      message: body.message ?? 'Could not read the sign right now. Please try again in a moment.',
     };
   }
 

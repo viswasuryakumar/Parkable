@@ -141,6 +141,19 @@ public class ScanHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             return Responses.verdict(verdict, stored, photoUrl, confidence);
         } catch (QueryParams.BadRequestException e) {
             return Responses.badRequest(e.getMessage());
+        } catch (RuntimeException e) {
+            // Anything below input validation (vision provider quota/auth/5xx,
+            // any other unexpected extractor failure) must still return a
+            // real response through Responses.json() - an uncaught exception
+            // here skips Lambda's proxy-integration response entirely,
+            // including the CORS header every other response carries, which
+            // the browser then reports as an opaque "Failed to fetch" rather
+            // than a real error. Found live: OpenRouter ran out of credits,
+            // every scan failed this way with no usable message reaching the
+            // client. Logged here (stderr -> CloudWatch) since the client
+            // only ever sees the generic message, never e's own detail.
+            System.err.println("Scan failed: " + e);
+            return Responses.serviceUnavailable("Could not read the sign right now. Please try again in a moment.");
         }
     }
 
