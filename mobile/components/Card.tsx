@@ -1,10 +1,12 @@
 import React from 'react';
-import { Platform, Pressable, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
-import { useTheme, RADIUS } from '../theme/colors';
+import { Pressable, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
+import { useTheme, RADIUS, ELEVATION } from '../theme/colors';
 
 type CardProps = ViewProps & {
   /** When provided, the card renders as a Pressable instead of a plain View. */
   onPress?: () => void;
+  /** Drops the internal padding for rows/lists that manage their own. */
+  flush?: boolean;
 };
 
 /**
@@ -16,9 +18,16 @@ type CardProps = ViewProps & {
  * rather than forcing every caller to duplicate the same visual styling on
  * a separately-wrapped Pressable.
  */
-export default function Card({ style, children, onPress, ...rest }: CardProps) {
+export default function Card({ style, children, onPress, flush = false, ...rest }: CardProps) {
   const theme = useTheme();
-  const baseStyle = [styles.base, { backgroundColor: theme.card, shadowColor: theme.text }];
+  // A hairline border as well as a shadow: shadows are nearly invisible
+  // against a dark background, so without it dark mode loses every card edge.
+  const baseStyle = [
+    styles.base,
+    { backgroundColor: theme.card, borderColor: theme.border },
+    ELEVATION.card as ViewStyle,
+    flush && styles.flush,
+  ];
 
   if (onPress) {
     return (
@@ -40,21 +49,15 @@ export default function Card({ style, children, onPress, ...rest }: CardProps) {
 
 const styles = StyleSheet.create({
   pressed: {
-    opacity: 0.85,
+    opacity: 0.9,
+    transform: [{ scale: 0.99 }],
   },
   base: {
     borderRadius: RADIUS.lg,
-    // Web ignores shadowColor/Offset/Opacity/Radius in favor of boxShadow,
-    // and ignores `elevation` entirely - three code paths for one visual
-    // effect, all plain StyleSheet properties, no new dependency.
-    ...Platform.select({
-      web: { boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)' },
-      android: { elevation: 2 },
-      default: {
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-      },
-    }),
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  flush: {
+    padding: 0,
   },
 });

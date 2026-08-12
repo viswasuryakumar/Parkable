@@ -2,7 +2,11 @@ import React from 'react';
 import { ActivityIndicator, Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { VerdictResponse } from '../services/api';
-import { useTheme, VERDICT_COLOR_KEYS } from '../theme/colors';
+import { useTheme, SPACING, RADIUS, TYPE } from '../theme/colors';
+import StatusBanner, { StatusTone } from './StatusBanner';
+import Card from './Card';
+import Icon from './Icon';
+import AppButton from './AppButton';
 
 const HAPTIC_FEEDBACK: Record<string, Haptics.NotificationFeedbackType> = {
   PARKABLE: Haptics.NotificationFeedbackType.Success,
@@ -14,6 +18,12 @@ const VERDICT_HEADLINES: Record<string, string> = {
   PARKABLE: 'You can park here',
   NOT_PARKABLE: 'Do not park here',
   DEPENDS: 'It depends',
+};
+
+const VERDICT_TONES: Record<string, StatusTone> = {
+  PARKABLE: 'allowed',
+  NOT_PARKABLE: 'forbidden',
+  DEPENDS: 'conditional',
 };
 
 function formatCountdown(msRemaining: number): string {
@@ -59,9 +69,15 @@ type VerdictSummaryProps = {
 };
 
 /**
- * The one way a verdict is displayed anywhere in the app: headline, reason,
- * live countdown to valid_until, and data-source label. Check tab and scan
+ * The one way a verdict is displayed anywhere in the app: verdict banner,
+ * what happens next, why, and where the data came from. Check tab and scan
  * results must never drift apart in what they tell the driver.
+ *
+ * Structured as banner -> next change -> evidence, in that order, because
+ * that is the order the questions actually get asked: "can I park?", then
+ * "for how long?", then "says who?". The old version stacked all of it as
+ * centred loose text at roughly equal weight, so answering the first
+ * question meant reading all three.
  */
 export default function VerdictSummary({
   verdict,
@@ -73,8 +89,7 @@ export default function VerdictSummary({
   const now = useNow();
   const theme = useTheme();
   const [traceExpanded, setTraceExpanded] = React.useState(false);
-  const colorKey = VERDICT_COLOR_KEYS[verdict.verdict];
-  const color = colorKey ? theme[colorKey] : theme.text;
+  const tone = VERDICT_TONES[verdict.verdict] ?? 'neutral';
   const validUntil = verdict.valid_until ? Date.parse(verdict.valid_until) : null;
   const msRemaining = validUntil === null ? null : validUntil - now;
   const isTimeLimited = verdict.verdict === 'PARKABLE' && validUntil !== null;
@@ -83,7 +98,7 @@ export default function VerdictSummary({
   const reveal = React.useRef(new Animated.Value(0)).current;
   React.useEffect(() => {
     reveal.setValue(0);
-    Animated.spring(reveal, { toValue: 1, useNativeDriver: true, friction: 6 }).start();
+    Animated.spring(reveal, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
     if (Platform.OS !== 'web') {
       const feedback = HAPTIC_FEEDBACK[verdict.verdict];
       if (feedback !== undefined) {
@@ -95,111 +110,141 @@ export default function VerdictSummary({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verdict.verdict, verdict.rule_id]);
 
+  const changeLabel = React.useMemo(() => {
+    if (awaitingTimerStart || msRemaining === null) {
+      return null;
+    }
+    if (msRemaining <= 0) {
+      return 'This verdict may be stale — check again.';
+    }
+    if (verdict.verdict === 'PARKABLE') {
+      return `Move your car within ${formatCountdown(msRemaining)}`;
+    }
+    if (verdict.verdict === 'NOT_PARKABLE') {
+      return `This restriction lifts in ${formatCountdown(msRemaining)}`;
+    }
+    return `This may change in ${formatCountdown(msRemaining)}`;
+  }, [awaitingTimerStart, msRemaining, verdict.verdict]);
+
   return (
     <Animated.View
       style={[
         styles.container,
         {
           opacity: reveal,
-          transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+          transform: [{ translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
         },
       ]}
     >
+      <StatusBanner
+        tone={tone}
+        title={VERDICT_HEADLINES[verdict.verdict] ?? verdict.verdict}
+        detail={verdict.reason}
+      />
+
+      {/* The scanned sign itself is evidence, so it sits with the verdict
+          rather than as a decorative header above it. */}
       {verdict.photo_url ? (
         <Image source={{ uri: verdict.photo_url }} style={styles.photo} resizeMode="cover" />
       ) : null}
-      <Text style={[styles.verdict, { color }]}>
-        {VERDICT_HEADLINES[verdict.verdict] ?? verdict.verdict}
-      </Text>
-      {typeof verdict.confidence === 'number' ? (
-        <View style={[styles.confidenceBadge, { backgroundColor: theme.card }]}>
-          <Text style={[styles.confidenceText, { color: theme.textMuted }]}>
-            {Math.round(verdict.confidence * 100)}% confident read
-          </Text>
-        </View>
-      ) : null}
-      {verdict.reason ? (
-        <Text style={[styles.reason, { color: theme.textMuted }]}>{verdict.reason}</Text>
-      ) : null}
 
       {awaitingTimerStart ? (
-        <View style={styles.timerPrompt}>
+        <Card style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Icon name="timer" size={18} color="accent" />
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Start your timer</Text>
+          </View>
           <Text style={[styles.note, { color: theme.textMuted }]}>
-            Tap Start the moment you actually park — the countdown is timed from then, not from
-            now.
+            Tap the moment you actually park — the countdown runs from then, not from now.
           </Text>
-          {startingTimer ? (
-            <ActivityIndicator color={theme.accent} />
-          ) : (
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryButton,
-                { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 },
-              ]}
-              onPress={onStartTimer}
-            >
-              <Text style={styles.primaryButtonText}>Start Parking Timer</Text>
-            </Pressable>
-          )}
-        </View>
+          <AppButton
+            title="Start parking timer"
+            icon="timer"
+            variant="primary"
+            size="lg"
+            fullWidth
+            loading={startingTimer}
+            onPress={() => {
+              onStartTimer?.();
+            }}
+          />
+        </Card>
       ) : null}
 
-      {!awaitingTimerStart && msRemaining !== null && msRemaining > 0 ? (
-        <Text style={[styles.countdown, { color: theme.text }]}>
-          {verdict.verdict === 'PARKABLE'
-            ? `Move your car within ${formatCountdown(msRemaining)}`
-            : verdict.verdict === 'NOT_PARKABLE'
-              ? `This restriction lifts in ${formatCountdown(msRemaining)}`
-              : `This may change in ${formatCountdown(msRemaining)}`}
-        </Text>
-      ) : null}
-      {!awaitingTimerStart && msRemaining !== null && msRemaining <= 0 ? (
-        <Text style={[styles.countdown, { color: theme.text }]}>
-          This verdict may be stale — check again.
-        </Text>
+      {changeLabel ? (
+        <Card style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Icon name="clock" size={18} color="textMuted" />
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Coming up</Text>
+          </View>
+          <Text style={[styles.changeText, { color: theme.text }]}>{changeLabel}</Text>
+        </Card>
       ) : null}
 
-      {verdict.source ? (
-        <Text style={[styles.source, { color: theme.textMuted }]}>
-          {verdict.source === 'gov_data'
-            ? 'Source: official city data'
-            : 'Source: community sign scan'}
-        </Text>
-      ) : null}
-
-      {verdict.trace && verdict.trace.length > 0 ? (
-        <View style={[styles.traceCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Pressable
-            style={styles.traceToggleRow}
-            onPress={() => setTraceExpanded((prev) => !prev)}
-            hitSlop={8}
-          >
-            <Text style={[styles.traceToggleText, { color: theme.text }]}>Why this verdict?</Text>
-            <Text style={[styles.traceChevron, { color: theme.textMuted }]}>{traceExpanded ? '▲' : '▼'}</Text>
-          </Pressable>
-          {traceExpanded ? (
-            <View style={[styles.traceBody, { borderTopColor: theme.border }]}>
-              {verdict.trace.map((line, index) => (
-                <Text key={index} style={[styles.traceLine, { color: theme.textMuted }]}>
-                  {line}
-                </Text>
-              ))}
+      {/* Confidence and provenance are the trust story - the whole promise of
+          this app is that no verdict is a black box - so they get one
+          labelled row each instead of two stray grey sentences. */}
+      {verdict.source || typeof verdict.confidence === 'number' ? (
+        <View style={styles.metaRow}>
+          {verdict.source ? (
+            <View style={[styles.metaChip, { backgroundColor: theme.surfaceMuted }]}>
+              <Icon name="source" size={13} color="textMuted" />
+              <Text style={[styles.metaText, { color: theme.textMuted }]}>
+                {verdict.source === 'gov_data' ? 'Official city data' : 'Community scan'}
+              </Text>
+            </View>
+          ) : null}
+          {typeof verdict.confidence === 'number' ? (
+            <View style={[styles.metaChip, { backgroundColor: theme.surfaceMuted }]}>
+              <Icon name="info" size={13} color="textMuted" />
+              <Text style={[styles.metaText, { color: theme.textMuted }]}>
+                {Math.round(verdict.confidence * 100)}% confident read
+              </Text>
             </View>
           ) : null}
         </View>
       ) : null}
 
+      {verdict.trace && verdict.trace.length > 0 ? (
+        <Card flush>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: traceExpanded }}
+            style={styles.traceToggleRow}
+            onPress={() => setTraceExpanded((prev) => !prev)}
+          >
+            <Icon name="info" size={18} color="textMuted" />
+            <Text style={[styles.sectionTitle, { color: theme.text, flex: 1 }]}>Why this verdict?</Text>
+            <Icon name={traceExpanded ? 'chevronUp' : 'chevronDown'} size={16} color="textSubtle" />
+          </Pressable>
+          {traceExpanded ? (
+            <View style={[styles.traceBody, { borderTopColor: theme.border }]}>
+              {verdict.trace.map((line, index) => (
+                <View key={index} style={styles.traceItem}>
+                  <View style={[styles.traceDot, { backgroundColor: theme.borderStrong }]} />
+                  <Text style={[styles.traceLine, { color: theme.textMuted }]}>{line}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </Card>
+      ) : null}
+
+      <Text style={[styles.disclaimer, { color: theme.textSubtle }]}>
+        Always check nearby signs, hydrants and driveways. Real-world conditions may vary.
+      </Text>
+
       {onReport ? (
         <Pressable
-          style={({ pressed }) => [
-            styles.reportButton,
-            { borderColor: theme.border, backgroundColor: pressed ? theme.card : 'transparent' },
-          ]}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.reportButton, pressed && { opacity: 0.7 }]}
           onPress={onReport}
           hitSlop={8}
         >
-          <Text style={styles.reportIcon}>🚩</Text>
-          <Text style={[styles.reportButtonText, { color: theme.textMuted }]}>Report an issue with this sign</Text>
+          <Icon name="flag" size={15} color="textMuted" />
+          <Text style={[styles.reportButtonText, { color: theme.textMuted }]}>
+            Report an issue with this sign
+          </Text>
         </Pressable>
       ) : null}
     </Animated.View>
@@ -208,101 +253,89 @@ export default function VerdictSummary({
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  verdict: {
-    fontSize: 32,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  reason: {
-    textAlign: 'center',
-    fontSize: 16,
-  },
-  timerPrompt: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  note: {
-    textAlign: 'center',
-    fontSize: 13,
-  },
-  countdown: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  source: {
-    fontSize: 13,
+    gap: SPACING.md,
+    width: '100%',
   },
   photo: {
-    width: 220,
-    height: 160,
-    borderRadius: 12,
-  },
-  confidenceBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  confidenceText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  primaryButton: {
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  traceCard: {
     width: '100%',
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
+    height: 180,
+    borderRadius: RADIUS.lg,
+  },
+  section: {
+    padding: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  sectionTitle: {
+    ...TYPE.heading,
+  },
+  changeText: {
+    ...TYPE.bodyStrong,
+  },
+  note: {
+    ...TYPE.body,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
+  },
+  metaText: {
+    ...TYPE.caption,
+    fontWeight: '600',
   },
   traceToggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  traceToggleText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  traceChevron: {
-    fontSize: 11,
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
   },
   traceBody: {
-    borderTopWidth: 1,
-    padding: 14,
-    gap: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  traceItem: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    alignItems: 'flex-start',
+  },
+  traceDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    marginTop: 7,
   },
   traceLine: {
-    fontSize: 12,
-    lineHeight: 17,
+    ...TYPE.caption,
+    flex: 1,
+  },
+  disclaimer: {
+    ...TYPE.caption,
+    textAlign: 'center',
+    paddingHorizontal: SPACING.md,
   },
   reportButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  reportIcon: {
-    fontSize: 13,
+    paddingVertical: SPACING.sm,
   },
   reportButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...TYPE.label,
   },
 });

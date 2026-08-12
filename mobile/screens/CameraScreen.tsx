@@ -206,7 +206,7 @@ export default function CameraScreen() {
 
   return (
     <View style={[styles.centered, { backgroundColor: theme.background }]}>
-      <IconBadge icon="📷" tint="violetSoft" size={72} />
+      <IconBadge name="camera" tint="violetSoft" size={72} />
       <Text style={[styles.title, { color: theme.text }]}>Scan a parking sign</Text>
       <Text style={[styles.note, { color: theme.textMuted }]}>
         Fit the whole sign in the frame. Nothing is uploaded until after you take the photo.

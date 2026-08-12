@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { useTheme, SPACING, RADIUS, Theme } from '../theme/colors';
+import Icon from './Icon';
+import { useTheme, SPACING, RADIUS, TYPE, Theme } from '../theme/colors';
 import { ParkingSession } from '../utils/parkingSession';
 import { formatDuration, urgencyOf, useCountdown, useElapsed, Urgency } from '../utils/countdown';
 
@@ -69,7 +70,11 @@ export default function ParkingSessionBanner({ session, onPress }: Props) {
       }
     >
       <View style={styles.headingRow}>
-        <Text style={styles.icon}>{urgency === 'expired' || urgency === 'urgent' ? '⏰' : '🚗'}</Text>
+        <Icon
+          name={urgency === 'expired' || urgency === 'urgent' ? 'bell' : 'car'}
+          size={20}
+          tint={strong}
+        />
         <Text style={[styles.heading, { color: strong }]} numberOfLines={2}>
           {heading}
         </Text>
@@ -100,12 +105,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.sm,
   },
-  icon: {
-    fontSize: 20,
-  },
   heading: {
     flex: 1,
-    fontSize: 15,
+    ...TYPE.bodyStrong,
     fontWeight: '700',
   },
   clockRow: {

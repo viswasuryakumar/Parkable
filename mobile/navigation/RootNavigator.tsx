@@ -1,6 +1,6 @@
 import React from 'react';
-import { Text } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import Icon, { IconName } from '../components/Icon';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme } from 'react-native';
@@ -21,11 +21,11 @@ import { RootStackParamList, TabParamList } from './types';
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const TAB_ICONS: Record<keyof TabParamList, string> = {
-  Home: '🏠',
-  Check: '🅿️',
-  Scan: '📷',
-  Nearby: '📍',
+const TAB_ICONS: Record<keyof TabParamList, IconName> = {
+  Home: 'home',
+  Check: 'check',
+  Scan: 'scan',
+  Nearby: 'nearby',
 };
 
 function Tabs() {
@@ -35,10 +35,20 @@ function Tabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: theme.accent,
-        tabBarInactiveTintColor: theme.textMuted,
-        tabBarStyle: { backgroundColor: theme.background, borderTopColor: theme.border },
-        tabBarIcon: () => (
-          <Text style={{ fontSize: 20 }}>{TAB_ICONS[route.name as keyof TabParamList]}</Text>
+        tabBarInactiveTintColor: theme.textSubtle,
+        tabBarStyle: {
+          backgroundColor: theme.card,
+          borderTopColor: theme.border,
+          height: 60,
+          paddingBottom: 6,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        // Real vector icons rather than emoji: emoji ignore the active/
+        // inactive tint entirely, so the selected tab was previously
+        // indistinguishable except by its label colour.
+        tabBarIcon: ({ color, focused }) => (
+          <Icon name={TAB_ICONS[route.name as keyof TabParamList]} size={focused ? 24 : 22} tint={color} />
         ),
       })}
     >

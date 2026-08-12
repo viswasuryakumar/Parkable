@@ -67,7 +67,7 @@ export default function FindMyCarScreen() {
   if (session === null) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
-        <IconBadge icon="🚗" />
+        <IconBadge name="car" />
         <Text style={[styles.title, { color: theme.text }]}>No active parking session</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>
           Start a parking timer from the Check or Scan tab to track where you left your car.
@@ -82,7 +82,7 @@ export default function FindMyCarScreen() {
 
   return (
     <View style={[styles.centered, { backgroundColor: theme.background }]}>
-      <IconBadge icon="📍" tint="parkableSoft" size={72} />
+      <IconBadge name="pin" tint="parkableSoft" size={72} />
       <Text style={[styles.title, { color: theme.text }]}>Your car is here</Text>
       {location ? (
         <Text style={[styles.location, { color: theme.accent }]}>{location}</Text>
