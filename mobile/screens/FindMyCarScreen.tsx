@@ -5,22 +5,28 @@ import * as Location from 'expo-location';
 import { ParkingSession, clearParkingSession, getParkingSession } from '../utils/parkingSession';
 import { describeLocation, metersBetween } from '../utils/geo';
 import { useTheme, SPACING } from '../theme/colors';
+import { formatDuration, useCountdown } from '../utils/countdown';
 import IconBadge from '../components/IconBadge';
 import AppButton from '../components/AppButton';
 
-function formatRemaining(validUntil: string | null): string | null {
-  if (!validUntil) {
+/**
+ * The live "time left" line. Split out as its own component because hooks
+ * can't run conditionally, and this screen returns early for the no-session
+ * and still-loading states before it knows there's a deadline to count.
+ */
+function RemainingLine({ validUntil }: { validUntil: string | null }) {
+  const theme = useTheme();
+  const msLeft = useCountdown(validUntil);
+  if (msLeft === null) {
     return null;
   }
-  const msRemaining = Date.parse(validUntil) - Date.now();
-  if (msRemaining <= 0) {
-    return 'Your time may already be up';
-  }
-  const minutes = Math.round(msRemaining / 60_000);
-  if (minutes < 60) {
-    return `${minutes}m left`;
-  }
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m left`;
+  const expired = msLeft <= 0;
+  const color = expired ? theme.notParkable : theme.textMuted;
+  return (
+    <Text style={[styles.note, { color }]}>
+      {expired ? 'Your time is up' : `${formatDuration(msLeft)} left`}
+    </Text>
+  );
 }
 
 /**
@@ -70,7 +76,6 @@ export default function FindMyCarScreen() {
     );
   }
 
-  const remaining = formatRemaining(session.validUntil);
   const location = here
     ? describeLocation(here.lat, here.lng, session.lat, session.lng, metersBetween(here.lat, here.lng, session.lat, session.lng))
     : null;
@@ -84,7 +89,7 @@ export default function FindMyCarScreen() {
       ) : (
         <ActivityIndicator />
       )}
-      {remaining ? <Text style={[styles.note, { color: theme.textMuted }]}>{remaining}</Text> : null}
+      <RemainingLine validUntil={session.validUntil} />
       <AppButton title="I've moved my car" variant="primary" onPress={handleClear} />
     </View>
   );

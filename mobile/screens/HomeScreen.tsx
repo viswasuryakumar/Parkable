@@ -9,6 +9,7 @@ import { getParkingSession, ParkingSession } from '../utils/parkingSession';
 import type { RootStackParamList, TabParamList } from '../navigation/types';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
+import ParkingSessionBanner from '../components/ParkingSessionBanner';
 
 type Navigation = CompositeNavigationProp<
   BottomTabNavigationProp<TabParamList>,
@@ -52,13 +53,7 @@ export default function HomeScreen() {
       </Text>
 
       {session ? (
-        <Card onPress={() => navigation.navigate('FindMyCar')} style={styles.sessionCard}>
-          <IconBadge icon="🚗" tint="accentSoft" size={44} />
-          <View style={styles.sessionBody}>
-            <Text style={[styles.sessionTitle, { color: theme.text }]}>You have an active parking session</Text>
-            <Text style={[styles.sessionNote, { color: theme.textMuted }]}>Tap to find your car</Text>
-          </View>
-        </Card>
+        <ParkingSessionBanner session={session} onPress={() => navigation.navigate('FindMyCar')} />
       ) : null}
 
       <View style={styles.grid}>
@@ -90,23 +85,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     lineHeight: 20,
-  },
-  sessionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    padding: SPACING.md,
-  },
-  sessionBody: {
-    flex: 1,
-    gap: 2,
-  },
-  sessionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  sessionNote: {
-    fontSize: 12,
   },
   grid: {
     flexDirection: 'row',
