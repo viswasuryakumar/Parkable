@@ -24,7 +24,7 @@ Supabase hosts our Postgres + PostGIS database. Free tier is plenty (500 MB DB).
    → toggle it **on** (schema `extensions` default is fine).
 6. **Create our table**: left sidebar → **SQL Editor** → **New query** → open
    `backend/sql/schema.sql` from this repo, copy ALL of it, paste, press **Run**.
-   - Expected: "Success. No rows returned".
+   - Expected: "Success. No rows returned". 
    - Verify: sidebar → **Table Editor** → you should see a `rules` table.
 7. **Get the connection string**: gear icon (**Project Settings**) → **Database** →
    **Connection string** section → choose **URI** and the **Transaction pooler** variant
