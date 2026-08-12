@@ -132,13 +132,21 @@ Resources:
           PARKABLE_DB_URL: !Ref DatabaseUrlParameter
           OPENROUTER_API_KEY: !Ref OpenRouterApiKeyParameter
           # Not secret - a model id, not a credential - so a plain literal
-          # here (vs. an SSM param like the two above) is fine. Was
-          # unset/defaulting to gpt-4o-mini; switched to a stronger vision
-          # model after live scans mis-transcribed sign text. Check
-          # https://openrouter.ai/models before assuming this is still
-          # current - pricing/catalog changes often (see
-          # OpenRouterVisionExtractor's DEFAULT_MODEL javadoc).
-          OPENROUTER_MODEL: anthropic/claude-sonnet-5
+          # here (vs. an SSM param like the two above) is fine. History:
+          # unset/defaulting to gpt-4o-mini -> switched to claude-sonnet-5
+          # after live scans mis-transcribed sign text -> switched again
+          # (2026-08-01) to gemini-2.5-flash-lite after burning through
+          # OpenRouter credits fast at sonnet-5's $2/$10 per-1M-token rate -
+          # flash-lite is $0.10/$0.40, a real ~20x cut, verified live against
+          # OpenRouter's own pricing API (not from memory - catalog/pricing
+          # changes often). Not yet proven on THIS project's dense
+          # multi-panel signs the way sonnet-5 was - if extraction quality
+          # regresses, google/gemini-2.5-flash ($0.30/$2.50, still ~7x
+          # cheaper) or anthropic/claude-haiku-4.5 ($1/$5, ~2x cheaper) are
+          # the next steps up in quality before going back to sonnet-5.
+          # gpt-4o-mini specifically is already ruled out - that's the model
+          # that caused the original mis-transcription bug.
+          OPENROUTER_MODEL: google/gemini-2.5-flash-lite
           PARKABLE_PHOTO_BUCKET: !Ref PhotosBucket
       Policies:
         - Statement:
