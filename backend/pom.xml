@@ -66,6 +66,16 @@
       <artifactId>s3</artifactId>
       <version>2.46.7</version>
     </dependency>
+    <!-- Web Push reminders: one one-shot EventBridge schedule per parking
+         session, self-deleting once it fires (ActionAfterCompletion=DELETE).
+         Chosen over a cron Lambda polling for due reminders specifically
+         because a poller runs - and bills - forever whether or not anyone is
+         parked, while one-shot schedules cost nothing when nobody is. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>scheduler</artifactId>
+      <version>2.46.7</version>
+    </dependency>
     <!-- Phase 2.5: NYC's nfid-uabd gov dataset only publishes NY State Plane
          (EPSG:2263, US survey feet) coordinates, not WGS84 lat/lng. Proj4J is
          a small, well-tested pure-Java CRS transform library - hand-rolling

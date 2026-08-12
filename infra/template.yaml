@@ -30,6 +30,18 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /parkable/admin-secret
     Description: SSM path for the shared secret gating GET /reports (owner-only report review, no real auth system)
+  VapidPublicKeyParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /parkable/vapid-public-key
+    Description: VAPID public key (base64url P-256 point). Public by design - the browser pins it at subscribe time.
+  VapidPrivateKeyParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /parkable/vapid-private-key
+    Description: VAPID private key (base64url P-256 scalar). Rotating it invalidates every existing push subscription.
+  VapidSubject:
+    Type: String
+    Default: mailto:ops@parkable.dev
+    Description: Contact the push service can reach about our traffic (RFC 8292)
 
 Resources:
   PhotosBucket:
@@ -227,7 +239,111 @@ Resources:
             Path: /reports
             Method: get
 
+  # --- Web Push parking reminders -------------------------------------------
+  # Mobile browsers cannot schedule a local notification the way the native
+  # app can, so the reminder is pushed from here instead. Ordering matters:
+  # the notify function must exist before the role that invokes it, which must
+  # exist before the function that passes that role to EventBridge.
+
+  PushNotifyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: parkable-push-notify
+      Runtime: java21
+      Timeout: 30
+      MemorySize: 512
+      CodeUri: ../backend/target/parkable-cli.jar
+      Handler: com.parkable.lambda.PushNotifyHandler::handleRequest
+      # Invoked by EventBridge Scheduler, never by API Gateway - so no Events.
+      Environment:
+        Variables:
+          PARKABLE_DB_URL: !Ref DatabaseUrlParameter
+          PARKABLE_VAPID_PUBLIC_KEY: !Ref VapidPublicKeyParameter
+          PARKABLE_VAPID_PRIVATE_KEY: !Ref VapidPrivateKeyParameter
+          PARKABLE_VAPID_SUBJECT: !Ref VapidSubject
+      Policies:
+        - Statement:
+            - Sid: ReadParameters
+              Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: '*'
+
+  # EventBridge Scheduler cannot invoke a Lambda on its own; it assumes this
+  # role at fire time. Scoped to the one function so a compromised schedule
+  # cannot be retargeted at anything else in the account.
+  SchedulerInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: InvokePushNotify
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt PushNotifyFunction.Arn
+
+  PushRemindersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: parkable-push-reminders
+      Runtime: java21
+      Timeout: 30
+      MemorySize: 512
+      CodeUri: ../backend/target/parkable-cli.jar
+      Handler: com.parkable.lambda.PushRemindersHandler::handleRequest
+      Environment:
+        Variables:
+          PARKABLE_DB_URL: !Ref DatabaseUrlParameter
+          PARKABLE_VAPID_PUBLIC_KEY: !Ref VapidPublicKeyParameter
+          PARKABLE_VAPID_PRIVATE_KEY: !Ref VapidPrivateKeyParameter
+          PARKABLE_VAPID_SUBJECT: !Ref VapidSubject
+          PARKABLE_NOTIFY_FUNCTION_ARN: !GetAtt PushNotifyFunction.Arn
+          PARKABLE_SCHEDULER_ROLE_ARN: !GetAtt SchedulerInvokeRole.Arn
+      Policies:
+        - Statement:
+            - Sid: ReadParameters
+              Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: '*'
+            - Sid: ManageParkingReminderSchedules
+              Effect: Allow
+              Action:
+                - scheduler:CreateSchedule
+                - scheduler:DeleteSchedule
+                - scheduler:GetSchedule
+              # Name-prefixed so this function can only touch its own
+              # reminders, not every schedule in the account.
+              Resource: !Sub arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/parkable-*
+            - Sid: PassSchedulerRole
+              Effect: Allow
+              Action: iam:PassRole
+              Resource: !GetAtt SchedulerInvokeRole.Arn
+      Events:
+        PushRemindersRoute:
+          Type: Api
+          Properties:
+            Path: /push/reminders
+            Method: post
+
 Outputs:
+  VapidPublicKey:
+    Description: Public key the web client must pass to pushManager.subscribe()
+    Value: !Ref VapidPublicKeyParameter
   ApiEndpoint:
     Description: API Gateway endpoint for Parkable
     Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod

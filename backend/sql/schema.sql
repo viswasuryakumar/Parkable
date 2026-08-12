@@ -40,3 +40,17 @@ CREATE INDEX IF NOT EXISTS rule_reports_rule_id_idx
 --     location,
 --     ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
 -- );
+
+-- Web Push subscriptions for the browser build (mobile web can't schedule a
+-- local notification the way the native app can, so the reminder has to be
+-- pushed from the server). Keyed by endpoint because that is what the browser
+-- re-issues verbatim on every resubscribe - so an upsert on it keeps one row
+-- per browser instead of accumulating a new row each visit.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id UUID PRIMARY KEY,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
