@@ -21,7 +21,27 @@ import { buildBaseUrl } from '../services/api';
  * that hasn't happened, so the caller can tell the user the truth.
  */
 
-const VAPID_PUBLIC_KEY = process.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY ?? '';
+/**
+ * The application server's public key, committed rather than injected.
+ *
+ * It is not a credential: the browser pins it when it subscribes, and every
+ * web-push site ships it in its client bundle. The matching private key lives
+ * in SSM and never leaves the server.
+ *
+ * It lives here because Expo inlines EXPO_PUBLIC_* at build time, so an env
+ * var has to be mirrored into every build environment separately - and when
+ * one is missed, push disables itself with no error and no prompt. That
+ * happened on the Vercel deploy. A committed default cannot drift out of
+ * sync with the code that uses it; the env var still wins if it is set, so a
+ * separate key per environment remains possible.
+ *
+ * Rotating this invalidates every existing subscription, so it is a
+ * deliberate breaking change either way - not something worth optimising for.
+ */
+const DEFAULT_VAPID_PUBLIC_KEY =
+  'BLRBaMUazjXHagWMqttrr8iPp0ZBJf7H5-lZuePtxMFgASTnRCy8IeaRO96ECGBa01WkkrjqlpS7l5a5WCvW6rg';
+
+const VAPID_PUBLIC_KEY = process.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY;
 
 export function isWebPushSupported(): boolean {
   return (
