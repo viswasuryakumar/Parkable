@@ -143,9 +143,18 @@ export default function VerdictSummary({
       />
 
       {/* The scanned sign itself is evidence, so it sits with the verdict
-          rather than as a decorative header above it. */}
+          rather than as a decorative header above it. "contain" rather than
+          "cover" for exactly that reason: cover fills the box by cropping,
+          and sign photos are usually portrait, so it was silently cutting
+          off the top or bottom panel of the very sign the verdict is about.
+          Letterboxing against a filled background (same treatment as
+          NearbyScreen's sign photo) shows the whole sign instead. */}
       {verdict.photo_url ? (
-        <Image source={{ uri: verdict.photo_url }} style={styles.photo} resizeMode="cover" />
+        <Image
+          source={{ uri: verdict.photo_url }}
+          style={[styles.photo, { backgroundColor: theme.border }]}
+          resizeMode="contain"
+        />
       ) : null}
 
       {awaitingTimerStart ? (
