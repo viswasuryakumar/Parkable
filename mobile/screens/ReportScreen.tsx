@@ -7,6 +7,7 @@ import { getDeviceId } from '../utils/deviceId';
 import { useTheme, SPACING, RADIUS } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/types';
 import AppButton from '../components/AppButton';
+import ScreenContainer from '../components/ScreenContainer';
 
 const REASON_PRESETS = [
   'Sign is gone / removed',
@@ -45,18 +46,18 @@ export default function ReportScreen() {
 
   if (phase === 'sent') {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScreenContainer>
         <Text style={[styles.title, { color: theme.text }]}>Thanks for the report</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>
           We'll take a look. This doesn't change what other drivers see right away.
         </Text>
         <AppButton title="Done" variant="primary" onPress={() => navigation.goBack()} />
-      </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <ScreenContainer contentStyle={styles.form}>
       <Text style={[styles.title, { color: theme.text }]}>Report an issue</Text>
       <Text style={[styles.note, { color: theme.textMuted }]}>
         What's wrong with this sign's data?
@@ -102,16 +103,15 @@ export default function ReportScreen() {
         <AppButton title="Submit report" variant="primary" onPress={submit} disabled={!reason.trim()} />
       )}
       <AppButton title="Cancel" onPress={() => navigation.goBack()} />
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: SPACING.xl,
-    gap: SPACING.md,
-    justifyContent: 'center',
+  // The text input and buttons want the full column width, not the centred
+  // shrink-wrap the default screen body gives short content.
+  form: {
+    alignItems: 'stretch',
   },
   title: {
     fontSize: 22,

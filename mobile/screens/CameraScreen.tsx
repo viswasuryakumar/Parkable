@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as Location from 'expo-location';
@@ -7,12 +7,13 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScanResult, VerdictResponse, checkParking, scanParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
-import { useTheme, SPACING } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { addHistoryEntry } from '../utils/history';
 import { startParkingSession } from '../utils/parkingSession';
 import type { RootStackParamList } from '../navigation/types';
 import IconBadge from '../components/IconBadge';
 import AppButton from '../components/AppButton';
+import ScreenContainer from '../components/ScreenContainer';
 
 type FlowState =
   | { phase: 'preview' }
@@ -154,17 +155,17 @@ export default function CameraScreen() {
 
   if (state.phase === 'uploading') {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+      <ScreenContainer>
         <ActivityIndicator size="large" />
         <Text style={[styles.title, { color: theme.text }]}>Reading the sign…</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>Uploading your photo and extracting the rules.</Text>
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (state.phase === 'verdict') {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+      <ScreenContainer>
         <VerdictSummary
           verdict={state.verdict}
           onStartTimer={startTimer}
@@ -177,35 +178,35 @@ export default function CameraScreen() {
           }
         />
         <AppButton title="Scan another sign" onPress={() => setState({ phase: 'preview' })} />
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (state.phase === 'retake') {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+      <ScreenContainer>
         <Text style={[styles.title, { color: theme.text }]}>Please retake the photo</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>
           Get closer, avoid glare, and fit the whole sign in the frame.
         </Text>
         <AppButton title="Retake" variant="primary" onPress={() => setState({ phase: 'preview' })} />
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+      <ScreenContainer>
         <Text style={[styles.title, { color: theme.text }]}>Something went wrong</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
         <AppButton title="Try again" variant="primary" onPress={() => setState({ phase: 'preview' })} />
-      </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={[styles.centered, { backgroundColor: theme.background }]}>
+    <ScreenContainer>
       <IconBadge name="camera" tint="violetSoft" size={72} />
       <Text style={[styles.title, { color: theme.text }]}>Scan a parking sign</Text>
       <Text style={[styles.note, { color: theme.textMuted }]}>
@@ -216,18 +217,11 @@ export default function CameraScreen() {
       ) : (
         <AppButton title="Open Camera" variant="primary" onPress={handleCapture} />
       )}
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: SPACING.xl,
-    gap: SPACING.md,
-  },
   title: {
     fontSize: 24,
     fontWeight: '600',

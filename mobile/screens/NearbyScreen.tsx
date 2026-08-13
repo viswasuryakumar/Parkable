@@ -14,7 +14,7 @@ import * as Location from 'expo-location';
 import { NearbyRule, nearbyParking } from '../services/api';
 import { describeLocation, metersBetween } from '../utils/geo';
 import { useTheme, SPACING } from '../theme/colors';
-import NearbyMap from '../components/NearbyMap';
+import ParkingMap from '../components/ParkingMap';
 import AppButton from '../components/AppButton';
 import { parseDaysLabel, parseStartTime, nextOccurrence } from '../utils/schedule';
 import { scheduleNotification } from '../utils/notifications';
@@ -232,16 +232,15 @@ export default function NearbyScreen() {
         ) : null}
       </View>
       {viewMode === 'map' ? (
-        <NearbyMap
-          userLat={userLat}
-          userLng={userLng}
+        <ParkingMap
+          user={{ lat: userLat, lng: userLng }}
           // One marker per SCAN, not per location cluster - each scan has
           // its own real reported coordinates, and a cluster can hold
           // several genuinely distinct scans (found live: "3 signs" all
           // showed as a single pin, because the cluster's own reference
           // point was reused for every scan inside it instead of each
           // scan's actual GPS reading).
-          groups={state.groups.flatMap((group) =>
+          markers={state.groups.flatMap((group) =>
             group.scans.map((scan) => ({
               key: `${group.key}:${scan.scanId}`,
               lat: scan.rules[0]?.lat ?? group.lat,

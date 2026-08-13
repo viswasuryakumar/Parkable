@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CheckResult, VerdictResponse, checkParking } from '../services/api';
 import VerdictSummary from '../components/VerdictSummary';
 import AppButton from '../components/AppButton';
+import ScreenContainer from '../components/ScreenContainer';
 import { useTheme } from '../theme/colors';
 import { addFavorite } from '../utils/favorites';
 import { startParkingSession } from '../utils/parkingSession';
@@ -122,34 +123,34 @@ export default function VerdictScreen() {
 
   if (state.phase === 'locating' || state.phase === 'checking') {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScreenContainer>
         <ActivityIndicator size="large" />
         <Text style={[styles.title, { color: theme.text }]}>
           {state.phase === 'locating' ? 'Finding your location…' : 'Checking parking rules…'}
         </Text>
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScreenContainer>
         <Text style={[styles.title, { color: theme.text }]}>Something went wrong</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>{state.message}</Text>
         <AppButton title="Try again" variant="primary" onPress={runCheck} />
-      </View>
+      </ScreenContainer>
     );
   }
 
   if (state.result.kind === 'no_data') {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScreenContainer>
         {street ? <Text style={[styles.location, { color: theme.accent }]}>Near {street}</Text> : null}
         <Text style={[styles.title, { color: theme.text }]}>No parking data here yet</Text>
         <Text style={[styles.note, { color: theme.textMuted }]}>{state.result.message}</Text>
         <AppButton title="Scan the sign" variant="primary" onPress={onScanRequested} />
         <AppButton title="Check again" onPress={runCheck} />
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -174,7 +175,7 @@ export default function VerdictScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <ScreenContainer>
       {street ? <Text style={[styles.location, { color: theme.accent }]}>Near {street}</Text> : null}
       {signs && signs.length > 1 ? (
         <View style={styles.carouselHeader}>
@@ -225,18 +226,11 @@ export default function VerdictScreen() {
       />
       <AppButton title="Check again" variant="primary" onPress={runCheck} />
       <AppButton title="Scan a sign instead" onPress={onScanRequested} />
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    gap: 12,
-  },
   title: {
     fontSize: 24,
     fontWeight: '600',
